@@ -105,7 +105,7 @@ int BPTreeNode<T>::findRecordWithKey(const T& key) {
 template <class T>
 bool BPTreeNode<T>::addKeyIntoNode(const T& key, int recordID) {
     auto lb = std::lower_bound(keys.begin(), keys.end(), key);
-    if (lb != keys.begin() && *lb == key) return false;
+    if (lb != keys.end() && *lb == key) return false;
     records.insert(lb - keys.begin() + records.begin(), recordID);
     keys.insert(lb, key);
     return true;
@@ -346,7 +346,7 @@ void BPTreeNode<T>::inflateLeaf() {
         keys.push_back(rightNode -> keys.front());
         records.push_back(rightNode -> records.front());
         rightNode -> keys.erase(rightNode -> keys.begin());
-        rightNode -> children.erase(rightNode -> children.begin());
+        rightNode -> records.erase(rightNode -> records.begin());
         int pos;
         for (pos = 0; pos < parent -> children.size(); pos++) {
             if (parent -> children[pos] == this) {
@@ -481,10 +481,15 @@ void BPTree<T>::DFS(BPNodePtr x, int d) {
     for (auto el : x -> keys) {
         cout << el << ' ';
     }
-    cout << std::endl;
+    cout << "\n";
     for (auto ptr : x -> children) {
         DFS(ptr, d + 1);
     }
+    if (x -> children.empty()) {
+        cout << "(";
+        for (auto rec : x -> records) {
+            cout << rec << ", ";
+        }
+        cout << ")\n";
+    }
 }
-
-// 0 1 0 2 0 3 0 4 0 6 0 7 0 8 0 9 1 6
