@@ -55,13 +55,13 @@ int Page::getOffset()
 
 bool Page::loadFile(const std::string &s, int x)
 {
+    if (fopen(s.c_str(), "rb") == nullptr)
+    {
+        FILE *fp = fopen(s.c_str(), "wb");
+        fclose(fp);
+    }
     FILE *fp = fopen(s.c_str(), "rb");
     filename = s;
-    if (fp == nullptr)
-    {
-        std::cerr << "opening file " << s << " error" << std::endl;
-        return false;
-    }
     offset = x;
     fseek(fp, offset * BLOCK_SIZE, 0);
     int t = fread(data, BLOCK_SIZE, 1, fp);
@@ -76,7 +76,7 @@ bool Page::loadFile(const std::string &s, int x)
 
 void Page::storeFile()
 {
-    FILE *fp = fopen(filename.c_str(), "wb");
+    FILE *fp = fopen(filename.c_str(), "wb+");
     if (fp == nullptr)
     {
         std::cerr << "creating file " << filename << " error" << std::endl;
