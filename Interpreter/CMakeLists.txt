@@ -1,5 +1,6 @@
 add_library(interpreter
     Interpreter.cpp
+    SQLStatement.cpp
     SQLStmtError.cpp
 )
 

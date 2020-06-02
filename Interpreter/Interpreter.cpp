@@ -91,7 +91,7 @@ static CondType GetCondType(const std::string &str, int &begin) {
         ++begin;
         if (begin < str.size() && str[begin] == '=') {
             ++begin;
-            return CondType::LESSS_EQUAL;
+            return CondType::LESS_EQUAL;
         } else if (begin < str.size() && str[begin] == '>') {
             ++begin;
             return CondType::NOT_EQUAL;
@@ -169,7 +169,7 @@ SQLStatement Interpreter::ParseStmt(const std::string &stmt) const {
                 return ParseDelete(stmt, i);
             } else if (str == "select") {
                 return ParseSelect(stmt, i);
-            } else if (str == "quit") {
+            } else if (str == "quit" || str == "exit") {
                 return ParseQuit(stmt, i);
             } else if (str == "execfile") {
                 return ParseExecfile(stmt, i);

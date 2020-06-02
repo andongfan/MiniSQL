@@ -12,7 +12,7 @@ enum class CondType {
     EQUAL,
     NOT_EQUAL,
     LESS,
-    LESSS_EQUAL,
+    LESS_EQUAL,
     GREAT,
     GREAT_EQUAL
 };

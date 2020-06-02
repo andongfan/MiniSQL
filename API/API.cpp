@@ -1,20 +1,29 @@
 #include "API.h"
 
-#include <iostream>
+#include <algorithm>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
 
 #include "CatalogManager.h"
 #include "SQLExecError.h"
 #include "Interpreter.h"
 
-static void PrintVal(const Value &val) {
+static std::string Val2Str(const Value &val, bool quote = false) {
+    std::string str;
     if (auto pv = std::get_if<int>(&val)) {
-        std::cout << *pv;
+        str = std::to_string(*pv);
     } else if (auto pv = std::get_if<double>(&val)) {
-        std::cout << *pv;
+        str = std::to_string(*pv);
     } else if (auto pv = std::get_if<std::string>(&val)) {
-        std::cout << "'" << *pv << "'";
+        if (quote) {
+            str = "'" + *pv + "'";
+        } else {
+            str = *pv;
+        }
     }
+    return str;
 }
 
 static void PrintConds(const std::vector<Condition> &conds) {
@@ -35,7 +44,7 @@ static void PrintConds(const std::vector<Condition> &conds) {
             std::cout << " <> ";
         } else if (cond.type == CondType::LESS) {
             std::cout << " < ";
-        } else if (cond.type == CondType::LESSS_EQUAL) {
+        } else if (cond.type == CondType::LESS_EQUAL) {
             std::cout << " <= ";
         } else if (cond.type == CondType::GREAT) {
             std::cout << " > ";
@@ -43,7 +52,7 @@ static void PrintConds(const std::vector<Condition> &conds) {
             std::cout << " >= ";
         }
 
-        PrintVal(cond.val);
+        std::cout << Val2Str(cond.val, true);
     }
     if (!conds.empty()) {
         std::cout << std::endl;
@@ -63,6 +72,45 @@ static std::string OrderStr(int i) {
     }
 }
 
+static void PrintTable(const Table &table,
+        const std::vector<std::vector<Value>> &datas) {
+    int N = table.attrbs.size();
+    std::vector<size_t> vec_len(N);
+    for (int i = 0; i < N; i++) {
+        vec_len[i] = table.attrbs[i].name.size();
+    }
+    for (const auto &row : datas) {
+        for (int i = 0; i < N; i++) {
+            vec_len[i] = std::max(vec_len[i], Val2Str(row[i]).size());
+        }
+    }
+    int len_sum = 0;
+    for (auto &i : vec_len) {
+        ++i;
+        len_sum += i;
+    }
+    auto split_str = "+" + std::string(N - 1 + len_sum, '-') + "+";
+
+    std::cout << "\n" << std::left << split_str << std::endl;
+    for (int i = 0; i < N; i++) {
+        std::cout << "|" << std::setw(vec_len[i]) << table.attrbs[i].name;
+    }
+    std::cout << "|\n" << split_str << std::endl;
+    for (const auto &row : datas) {
+        for (int i = 0; i < N; i++) {
+            std::cout << "|" << std::setw(vec_len[i]) << Val2Str(row[i]);
+        }
+        std::cout << "|\n" << split_str << std::endl;
+    }
+
+    int n_row = datas.size();
+    if (n_row > 1) {
+        std::cout << n_row << " rows returned" << std::endl;
+    } else {
+        std::cout << n_row << " row returned" << std::endl;
+    }
+}
+
 static bool CheckType(const Attribute &attrb, const Value &val) {
     if (attrb.type == AttrbType::INT) {
         return std::get_if<int>(&val) != nullptr;
@@ -72,6 +120,189 @@ static bool CheckType(const Attribute &attrb, const Value &val) {
     } else {
         return std::get_if<std::string>(&val) != nullptr;
     }
+}
+
+static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
+    std::sort(conds.begin(), conds.end(),
+        [](const Condition &a, const Condition &b) {
+            return a.attrb < b.attrb;
+        });
+
+    std::vector<Condition> new_conds;
+    for (int i = 0, last = 0; i < conds.size(); i++) {
+        if (i + 1 == conds.size() || conds[i].attrb != conds[i + 1].attrb) {
+            auto attrb = conds[i].attrb;
+            auto ty = table.GetAttrb(attrb).type;
+            if (ty == AttrbType::INT) {
+                int lower_bound = std::numeric_limits<int>::max();
+                int upper_bound = std::numeric_limits<int>::min();
+                int eq_val;
+                bool has_eq_val = false;
+                for (int j = last; j <= i; j++) {
+                    auto cty = conds[j].type;
+                    int tmp = std::get<int>(conds[j].val);
+                    if (cty == CondType::EQUAL) {
+                        if (has_eq_val && tmp != eq_val) {
+                            return true;
+                        }
+                        has_eq_val = true;
+                        eq_val = tmp;
+                    } else if (cty == CondType::LESS) {
+                        upper_bound = std::min(upper_bound, tmp - 1);
+                    } else if (cty == CondType::LESS_EQUAL) {
+                        upper_bound = std::min(upper_bound, tmp);
+                    } else if (cty == CondType::GREAT) {
+                        lower_bound = std::max(lower_bound, tmp + 1);
+                    } else if (cty == CondType::LESS) {
+                        lower_bound = std::max(lower_bound, tmp);
+                    }
+                }
+                if (lower_bound > upper_bound) {
+                    return true;
+                }
+                new_conds.emplace_back(attrb, lower_bound, CondType::GREAT_EQUAL);
+                new_conds.emplace_back(attrb, upper_bound, CondType::LESS_EQUAL);
+                for (int j = last; j <= i; j++) {
+                    if (conds[j].type == CondType::NOT_EQUAL) {
+                        int tmp = std::get<int>(conds[j].val);
+                        if (tmp >= lower_bound && tmp <= upper_bound) {
+                            new_conds.emplace_back(attrb, tmp,
+                                CondType::NOT_EQUAL);
+                        }
+                    }
+                }
+            } else if (ty == AttrbType::FLOAT) {
+                double lb_e = std::numeric_limits<double>::max();
+                double lb_ne = std::numeric_limits<double>::max();
+                double ub_e = std::numeric_limits<double>::min();
+                double ub_ne = std::numeric_limits<double>::min();
+                double eq_val;
+                bool has_eq_val = false;
+                for (int j = last; j <= i; j++) {
+                    auto cty = conds[j].type;
+                    double tmp;
+                    if (auto p = std::get_if<int>(&conds[j].val)) {
+                        tmp = *p;
+                    } else {
+                        tmp = std::get<double>(conds[j].val);
+                    }
+                    if (cty == CondType::EQUAL) {
+                        if (has_eq_val && tmp != eq_val) {
+                            return true;
+                        }
+                        has_eq_val = true;
+                        eq_val = tmp;
+                    } else if (cty == CondType::LESS) {
+                        ub_ne = std::min(ub_ne, tmp);
+                    } else if (cty == CondType::LESS_EQUAL) {
+                        ub_e = std::min(ub_e, tmp);
+                    } else if (cty == CondType::GREAT) {
+                        lb_ne = std::max(lb_ne, tmp);
+                    } else if (cty == CondType::LESS) {
+                        lb_e = std::max(lb_e, tmp);
+                    }
+                }
+                double lower_bound;
+                double upper_bound;
+                bool has_ne = false;
+                if (ub_ne <= ub_e) {
+                    new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    upper_bound = ub_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    upper_bound = ub_e;
+                }
+                if (lb_ne >= lb_e) {
+                    new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    lower_bound = lb_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    lower_bound = lb_e;
+                }
+                if (lower_bound > upper_bound ||
+                        (lower_bound == upper_bound && has_ne)) {
+                    return true;
+                }
+                for (int j = last; j <= i; j++) {
+                    if (conds[j].type == CondType::NOT_EQUAL) {
+                        double tmp;
+                        if (auto p = std::get_if<int>(&conds[j].val)) {
+                            tmp = *p;
+                        } else {
+                            tmp = std::get<double>(conds[j].val);
+                        }
+                        if (tmp >= lower_bound && tmp <= upper_bound) {
+                            new_conds.emplace_back(attrb, tmp,
+                                CondType::NOT_EQUAL);
+                        }
+                    }
+                }
+            } else {
+                std::string lb_e = "\xff";
+                std::string lb_ne = "\xff";
+                std::string ub_e = "\0";
+                std::string ub_ne = "\0";
+                std::string eq_val;
+                bool has_eq_val = false;
+                for (int j = last; j <= i; j++) {
+                    auto cty = conds[j].type;
+                    auto tmp = std::get<std::string>(conds[j].val);
+                    if (cty == CondType::EQUAL) {
+                        if (has_eq_val && tmp != eq_val) {
+                            return true;
+                        }
+                        has_eq_val = true;
+                        eq_val = tmp;
+                    } else if (cty == CondType::LESS) {
+                        ub_ne = std::min(ub_ne, tmp);
+                    } else if (cty == CondType::LESS_EQUAL) {
+                        ub_e = std::min(ub_e, tmp);
+                    } else if (cty == CondType::GREAT) {
+                        lb_ne = std::max(lb_ne, tmp);
+                    } else if (cty == CondType::LESS) {
+                        lb_e = std::max(lb_e, tmp);
+                    }
+                }
+                std::string lower_bound;
+                std::string upper_bound;
+                bool has_ne = false;
+                if (ub_ne <= ub_e) {
+                    new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    upper_bound = ub_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    upper_bound = ub_e;
+                }
+                if (lb_ne >= lb_e) {
+                    new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    lower_bound = lb_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    lower_bound = lb_e;
+                }
+                if (lower_bound > upper_bound ||
+                        (lower_bound == upper_bound && has_ne)) {
+                    return true;
+                }
+                for (int j = last; j <= i; j++) {
+                    if (conds[j].type == CondType::NOT_EQUAL) {
+                        auto tmp = std::get<std::string>(conds[j].val);
+                        if (tmp >= lower_bound && tmp <= upper_bound) {
+                            new_conds.emplace_back(attrb, tmp,
+                                CondType::NOT_EQUAL);
+                        }
+                    }
+                }
+            }
+            last = i + 1;
+        }
+    }
+    conds.swap(new_conds);
+    return false;
 }
 
 static void CreateTable(const CreateTableStmt &stmt) {
@@ -163,6 +394,11 @@ static void Delete(const DeleteStmt &stmt) {
                 " constrain doesn't match");
         }
     }
+
+    auto conds = stmt.conds;
+    if (MergeConditions(table, conds)) {
+        return;
+    }
 }
 
 static void Select(const SelectStmt &stmt) {
@@ -183,6 +419,12 @@ static void Select(const SelectStmt &stmt) {
             throw SQLExecError("value type of the " + OrderStr(++i) +
                 " constrain doesn't match");
         }
+    }
+
+    auto conds = stmt.conds;
+    if (MergeConditions(table, conds)) {
+        PrintTable(table, {});
+        return;
     }
 }
 
@@ -242,8 +484,7 @@ void Print(const SQLStatement &stmt) {
     } else if (auto p = std::get_if<InsertStmt>(&stmt)) {
         std::cout << "insert into " << p->name << " values (";
         for (const auto &val : p->vals) {
-            PrintVal(val);
-            std::cout << "  ";
+            std::cout << Val2Str(val, true) << "  ";
         }
         std::cout << ")" << std::endl;
     } else if (auto p = std::get_if<DeleteStmt>(&stmt)) {
