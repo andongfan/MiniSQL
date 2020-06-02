@@ -8,24 +8,11 @@ using std::cin;
 using std::cout;
 using std::string;
 
-#define DEBUG
+// #define DEBUG
 int freeStack[105] = {0};
 int blockCount = 0;
 
-// simple version
-int getEmptyBlockID() {
-    if (freeStack[0] == 0) {
-        return blockCount++;
-    }
-    int ret = freeStack[freeStack[0]];
-    freeStack[0]--;
-    return ret;
-}
-
-void removeBlock(int blockID) {
-    freeStack[++freeStack[0]] = blockID;
-}
-
+template<class T> class BPTree;
 template <class T>
 class BPTreeNode {
 private:
@@ -37,18 +24,18 @@ private:
     int keyLen;
 
     int parent;
-    // int size;
-    #ifndef DEBUG
-    std::vector <T> keys;
-    std::vector <int> records;
-    std::vector <BPTreeNode*> children;
-    #endif
+    // // int size;
+    // #ifndef DEBUG
+    // std::vector <T> keys;
+    // std::vector <int> records;
+    // std::vector <BPTreeNode*> children;
+    // #endif
     int rightNode;
     int leftNode;
     bool isLeaf;
     int N;
-    BPTreeNode<T>* splitLeaf();
-    BPTreeNode<T>* splitNonLeaf();
+    BPTreeNode<T>* splitLeaf(const BPTree<T>* tree);
+    BPTreeNode<T>* splitNonLeaf(const BPTree<T>* tree);
 
 public:
 
@@ -62,11 +49,11 @@ public:
     BPTreeNode(string _fileName, int _blockID, int _keyLen, int _parent, int _N, bool _isLeaf);
     ~BPTreeNode();
 
-    #ifdef DEBUG
+    // #ifdef DEBUG
     std::vector <T> keys;
     std::vector <int> records;
     std::vector <int> children;
-    #endif
+    // #endif
 
     bool isRoot();
     bool isLeafNode();
@@ -81,7 +68,7 @@ public:
     int getChildWithKey(const T& key);
 
     void pushKeyAndRecord(const T& key, int recordID);
-    BPTreeNode<T>* split();
+    BPTreeNode<T>* split(const BPTree<T>* tree);
 
     bool tryReplaceKey(const T& oldKey, const T& newKey);
     bool inflateLeaf();
@@ -258,12 +245,12 @@ void BPTreeNode<T>::pushKeyAndRecord(const T& key, int recordID) {
 
 // send ceil((n-1)/2) up to the parent and pointers from (ceil((n-1)/2) + 1) to ... send to splitNode
 template <class T>
-BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf() {
+BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf(const BPTree<T>* tree) {
     const auto upIndex = std::ceil((N - 1.0) / 2);
     const auto keyLen = keys.size();
     const auto upKey = keys[upIndex];
     // cout << upIndex;
-    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, getEmptyBlockID(), keyLen, parent, N, isLeaf); 
+    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, parent, N, isLeaf); 
     for (int i = upIndex + 1; i < keyLen; i++) {
         splitNode -> keys.push_back(keys[upIndex + 1]);
         splitNode -> children.push_back(children[upIndex + 1]);
@@ -290,7 +277,7 @@ BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf() {
     rightNode = splitNode -> blockID;
 
     if (parent == -1) {
-        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, getEmptyBlockID(), keyLen, -1, N, false);
+        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, -1, N, false);
         newRoot -> keys.push_back(upKey);
         newRoot -> children.push_back(blockID);
         newRoot -> children.push_back(splitNode -> blockID);
@@ -313,8 +300,8 @@ BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf() {
 
 // split overload node and insert smallest key of the new node into parent
 template <class T>
-BPTreeNode<T>* BPTreeNode<T>::splitLeaf() {
-    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, getEmptyBlockID(), keyLen, parent, N, isLeaf); 
+BPTreeNode<T>* BPTreeNode<T>::splitLeaf(const BPTree<T>* tree) {
+    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, parent, N, isLeaf); 
     // BPTreeNode<T>* splitNode = new BPTreeNode<T>(parent, N, isLeaf);
     const int len = keys.size();
     const int leftLen = std::ceil(len / 2.0);
@@ -335,7 +322,7 @@ BPTreeNode<T>* BPTreeNode<T>::splitLeaf() {
 
     if (parent == -1) {
         // BPTreeNode<T>* newRoot = new BPTreeNode<T>(NULL, N, false);
-        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, getEmptyBlockID(), keyLen, -1, N, false); 
+        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, -1, N, false); 
         newRoot -> pushKeyAndRecord(splitNode -> keys[0], splitNode -> records[0]);
         newRoot -> children.push_back(blockID);
         newRoot -> children.push_back(splitNode -> blockID);
@@ -366,8 +353,8 @@ BPTreeNode<T>* BPTreeNode<T>::splitLeaf() {
 }
 
 template <class T>
-BPTreeNode<T>* BPTreeNode<T>::split() {
-    return isLeaf ? splitLeaf() : splitNonLeaf();
+BPTreeNode<T>* BPTreeNode<T>::split(const BPTree<T>* tree) {
+    return isLeaf ? splitLeaf(tree) : splitNonLeaf(tree);
 }
 
 template <class T>
@@ -605,27 +592,56 @@ private:
     int keyLen;
     int rtID;
     BPNodePtr findNodeWithKey(const T& key);       // returns b+ node pointer
-    const int N;            
+    const int N;
+    int count;
+    int firstEmpty;
+    void updateHeader();
 
 public:
-    BPTree(string _fileName, int _keyLen, int _N);
+    BPTree(string _fileName);
     int root() {
         return rtID;
     }
-    int findRecordWithKey(const T& key);                     // get the record for key
+    int findRecordWithKey(const T& key);         
+    std::vector<int> findRecordWithRange(const T& st, const T& end);                     // get the record for key
     bool insertRecordWithKey(const T& key, int recordID);    // insert key-record pair into b+
     bool deleteRecordWithKey(const T& key);                  // delete key-record pair from b+
 
     void print();                                            // debug
     void DFS(int xid, int d);
+
+    int getFirstEmpty();
+    void removeBlock(int blockID);
 };
 
-// empty tree
 template <class T>
-BPTree<T>::BPTree(string _fileName, int _keyLen, int _N) : fileName(_fileName), keyLen(_keyLen), N(_N) {
-    BPNodePtr rootPtr = new BPTreeNode<T>(fileName, getEmptyBlockID(), keyLen, -1, N, true);
-    rtID = rootPtr -> blockID;
-    delete rootPtr;
+void BPTree<T>::updateHeader() {
+    int page = buf_mgr.getPageId(fileName, 0);
+    char* data = buf_mgr.getPageAddress(page);
+    buf_mgr.pinPage(page);
+    memcpy(data + 8, &count, 4);
+    memcpy(data + 12, &rtID, 4);
+    memcpy(data + 16, &firstEmpty, 4);
+    buf_mgr.dirtPage(page);
+    buf_mgr.unpinPage(page);
+}
+
+template <class T>
+BPTree<T>::BPTree(string _fileName) : fileName(_fileName) {
+    int page = buf_mgr.getPageId(fileName, 0);
+    char* data = buf_mgr.getPageAddress(page);
+    buf_mgr.pinPage(page);
+    N = *(reinterpret_cast<int*>(data));
+    keyLen = *(reinterpret_cast<int*>(data + 4));
+    count = *(reinterpret_cast<int*>(data + 8));
+    rtID = *(reinterpret_cast<int*>(data + 12));
+    firstEmpty = *(reinterpret_cast<int*>(data + 16));
+    buf_mgr.unpinPage(page);
+    if (rtID == -1 && count == 0) {
+        rtID = getFirstEmpty();
+        BPNodePtr root = new BPTreeNode<T>(fileName, rtID, keyLen, -1, N, true);
+        delete root;
+    }
 };
 
 template <class T>
@@ -640,7 +656,7 @@ BPTreeNode<T>* BPTree<T>::findNodeWithKey(const T& key) {
         curPtr = new BPTreeNode<T>(fileName, curNode, keyLen, N, 2);
         nextNode = curPtr -> getChildWithKey(key);
     }
-    curPtr -> dirtyLevel = 0; // ?
+    curPtr -> dirtyLevel = 0;
     return curPtr;
 }
 
@@ -651,6 +667,41 @@ int BPTree<T>::findRecordWithKey(const T& key) {
     int ret = nodePtr -> findRecordWithKey(key);
     nodePtr -> dirtyLevel = 0;
     delete nodePtr;
+    return ret;
+}
+
+template <class T>
+std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
+    if (st > end) return std::vector<int>();
+    BPNodePtr beginBlock = findNodeWithKey(st);
+    BPNodePtr endBlock = findNodeWithKey(end);
+    BPNodePtr cur = beginBlock;
+    std::vector<int> ret;
+    auto L = std::lower_bound(beginBlock -> records.begin(), beginBlock -> records.end(), st);
+    auto R = std::upper_bound(endBlock -> records.begin(), endBlock -> records.end(), end);
+    if (beginBlock -> blockID == endBlock -> blockID) {
+        for (auto it = L; it != R; it++) {
+            ret.push_back(*it);
+        }
+        delete beginBlock;
+        delete endBlock;
+        return ret;
+    }
+    for (; L != beginBlock -> records.end(); L++) {
+        ret.push_back(*L);
+    }
+    while(cur -> rightNode != endBlock -> blockID) {
+        cur = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, 2);
+        cur -> dirtyLevel = 0;
+        for (auto it = cur -> records.begin(); it != cur -> records.end(); it++) {
+            ret.push_back(*it);
+        }
+    }
+    for (auto it = endBlock -> records.begin(); it != R; it++) {
+        ret.push_back(*it);
+    }
+    delete beginBlock;
+    delete endBlock;
     return ret;
 }
 
@@ -665,10 +716,11 @@ bool BPTree<T>::insertRecordWithKey(const T& key, int recordID) {
     BPNodePtr current = toInsert;
     if (!current -> isOverLoad()) {
         delete current;
+        updateHeader();
         return true;
     }
     while(current -> isOverLoad()) {
-        BPNodePtr next = current -> split();
+        BPNodePtr next = current -> split(this);
         delete current;
         current = next;
         if (current -> getParent() == -1) {
@@ -676,6 +728,7 @@ bool BPTree<T>::insertRecordWithKey(const T& key, int recordID) {
         }
     }
     delete current;
+    updateHeader();
     return true;
 }
 
@@ -689,6 +742,7 @@ bool BPTree<T>::deleteRecordWithKey(const T& key) {
     }
     if ((toDelete -> getParent() == -1 && toDelete -> isLeafNode()) || toDelete -> keyNum() >= std::floor((N + 1.0) / 2)) {
         delete toDelete;
+        updateHeader();
         return true;
     }
     toDelete -> inflateLeaf();
@@ -701,7 +755,28 @@ bool BPTree<T>::deleteRecordWithKey(const T& key) {
     }
     // delete toDelete;
     delete rootPtr;
+    updateHeader();
     return true;
+}
+
+template <class T>
+int BPTree<T>::getFirstEmpty() {
+    if (firstEmpty == -1) {
+        return ++count;
+    }
+    int first = firstEmpty;
+    int page = buf_mgr.getPageId(fileName, firstEmpty);
+    char *data = buf_mgr.getPageAddress(page);
+    firstEmpty = *(reinterpret_cast<int*>(data));
+    return first;
+}
+
+template <class T>
+void BPTree<T>::removeBlock(int blockID) {
+    int page = buf_mgr.getPageId(fileName, blockID);
+    char *data = buf_mgr.getPageAddress(page);
+    memcpy(data, &firstEmpty, 4);
+    firstEmpty = blockID;
 }
 
 // debug
