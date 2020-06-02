@@ -58,7 +58,11 @@ bool Page::loadFile(const std::string &s, int x)
     // std::cerr << s << ' ' << x << std::endl;
     // std::cerr << "loading " << s << std::endl;
     // need to guarantee that the 1st to (x-1)th page was created before
-    FILE *fp = fopen((s + ".data").c_str(), "wb+");
+    FILE *fp = fopen((s + ".data").c_str(), "rb+");
+    if (fp == nullptr)
+    {
+        fp = fopen((s + ".data").c_str(), "wb+");
+    }
     filename = s;
     offset = x;
     fseek(fp, offset * BLOCK_SIZE, 0);
@@ -78,10 +82,10 @@ bool Page::loadFile(const std::string &s, int x)
 
 void Page::storeFile()
 {
-    FILE *fp = fopen((filename + ".data").c_str(), "wb+");
+    FILE *fp = fopen((filename + ".data").c_str(), "rb+");
     if (fp == nullptr)
     {
-        std::cerr << "creating file " << filename << " error" << std::endl;
+        fp = fopen((filename + ".data").c_str(), "wb+");
         return;
     }
     fseek(fp, offset * BLOCK_SIZE, 0);

@@ -108,7 +108,7 @@ namespace RM
             {
                 if (p[offset] == 1)
                 {
-                    std::vector<Value> vals = GetTuple(t, p);
+                    std::vector<Value> vals = GetTuple(t, p + offset);
                     // std::cerr << vals.size() << std::endl;
                     // std::cerr << std::get<std::string>(vals[id]) << ' ' << std::get<std::string>(v) << std::endl;
                     if (vals[id] == v)
