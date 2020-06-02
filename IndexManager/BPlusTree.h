@@ -30,20 +30,21 @@ private:
     // std::vector <int> records;
     // std::vector <BPTreeNode*> children;
     // #endif
-    int rightNode;
-    int leftNode;
     bool isLeaf;
     int N;
-    BPTreeNode<T>* splitLeaf(const BPTree<T>* tree);
-    BPTreeNode<T>* splitNonLeaf(const BPTree<T>* tree);
+    BPTreeNode<T>* splitLeaf(BPTree<T>* tree);
+    BPTreeNode<T>* splitNonLeaf(BPTree<T>* tree);
 
 public:
 
     int blockID;
     int dirtyLevel;
 
+    int rightNode;
+    int leftNode;
+
     template <class U>
-    friend void deleteNonLeaf(int pos, BPTreeNode<U>* node);
+    friend void deleteNonLeaf(int pos, BPTreeNode<U>* node, BPTree<U>* tree);
 
     BPTreeNode(string _fileName, int _blockID, int _keyLen, int _N, int _dirtyLevel);
     BPTreeNode(string _fileName, int _blockID, int _keyLen, int _parent, int _N, bool _isLeaf);
@@ -68,10 +69,10 @@ public:
     int getChildWithKey(const T& key);
 
     void pushKeyAndRecord(const T& key, int recordID);
-    BPTreeNode<T>* split(const BPTree<T>* tree);
+    BPTreeNode<T>* split(BPTree<T>* tree);
 
     bool tryReplaceKey(const T& oldKey, const T& newKey);
-    bool inflateLeaf();
+    bool inflateLeaf(BPTree<T>* tree);
 
     void removeParent() {
         parent = -1;
@@ -201,7 +202,9 @@ inline int BPTreeNode<T>::getParent() {
 template <class T>
 int BPTreeNode<T>::findRecordWithKey(const T& key) {
     auto lb = std::lower_bound(keys.begin(), keys.end(), key);
-    if (lb != keys.end() && *lb == key) return *lb;
+    if (lb != keys.end() && *lb == key) {
+        return records[lb - keys.begin()];
+    }
     return NOT_VALID;
 }
 
@@ -245,12 +248,12 @@ void BPTreeNode<T>::pushKeyAndRecord(const T& key, int recordID) {
 
 // send ceil((n-1)/2) up to the parent and pointers from (ceil((n-1)/2) + 1) to ... send to splitNode
 template <class T>
-BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf(const BPTree<T>* tree) {
+BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf(BPTree<T>* tree) {
     const auto upIndex = std::ceil((N - 1.0) / 2);
     const auto keyLen = keys.size();
     const auto upKey = keys[upIndex];
     // cout << upIndex;
-    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, parent, N, isLeaf); 
+    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getFirstEmpty(), keyLen, parent, N, isLeaf); 
     for (int i = upIndex + 1; i < keyLen; i++) {
         splitNode -> keys.push_back(keys[upIndex + 1]);
         splitNode -> children.push_back(children[upIndex + 1]);
@@ -277,7 +280,7 @@ BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf(const BPTree<T>* tree) {
     rightNode = splitNode -> blockID;
 
     if (parent == -1) {
-        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, -1, N, false);
+        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, tree -> getFirstEmpty(), keyLen, -1, N, false);
         newRoot -> keys.push_back(upKey);
         newRoot -> children.push_back(blockID);
         newRoot -> children.push_back(splitNode -> blockID);
@@ -300,8 +303,8 @@ BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf(const BPTree<T>* tree) {
 
 // split overload node and insert smallest key of the new node into parent
 template <class T>
-BPTreeNode<T>* BPTreeNode<T>::splitLeaf(const BPTree<T>* tree) {
-    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, parent, N, isLeaf); 
+BPTreeNode<T>* BPTreeNode<T>::splitLeaf(BPTree<T>* tree) {
+    BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getFirstEmpty(), keyLen, parent, N, isLeaf); 
     // BPTreeNode<T>* splitNode = new BPTreeNode<T>(parent, N, isLeaf);
     const int len = keys.size();
     const int leftLen = std::ceil(len / 2.0);
@@ -322,7 +325,7 @@ BPTreeNode<T>* BPTreeNode<T>::splitLeaf(const BPTree<T>* tree) {
 
     if (parent == -1) {
         // BPTreeNode<T>* newRoot = new BPTreeNode<T>(NULL, N, false);
-        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, tree -> getEmptyBlockID(), keyLen, -1, N, false); 
+        BPTreeNode<T>* newRoot = new BPTreeNode<T>(fileName, tree -> getFirstEmpty(), keyLen, -1, N, false); 
         newRoot -> pushKeyAndRecord(splitNode -> keys[0], splitNode -> records[0]);
         newRoot -> children.push_back(blockID);
         newRoot -> children.push_back(splitNode -> blockID);
@@ -353,16 +356,16 @@ BPTreeNode<T>* BPTreeNode<T>::splitLeaf(const BPTree<T>* tree) {
 }
 
 template <class T>
-BPTreeNode<T>* BPTreeNode<T>::split(const BPTree<T>* tree) {
+BPTreeNode<T>* BPTreeNode<T>::split(BPTree<T>* tree) {
     return isLeaf ? splitLeaf(tree) : splitNonLeaf(tree);
 }
 
 template <class T>
-void deleteNonLeaf(int pos, BPTreeNode<T>* node) {
+void deleteNonLeaf(int pos, BPTreeNode<T>* node, BPTree<T>* tree) {
     auto& nodeKeys = node -> keys;
     auto& nodeChild = node -> children;
     nodeKeys.erase(nodeKeys.begin() + pos);
-    removeBlock(nodeChild[pos + 1]);
+    tree -> removeBlock(nodeChild[pos + 1]);
     nodeChild.erase(nodeChild.begin() + pos + 1);
     if ((node -> getParent() == -1) || (node -> keyNum() >= std::floor((node -> N + 1.0) / 2) - 1)) {
         delete node;
@@ -448,7 +451,7 @@ void deleteNonLeaf(int pos, BPTreeNode<T>* node) {
         // maintain right to empty
 
 
-        deleteNonLeaf<T>(pos, parentPtr);
+        deleteNonLeaf<T>(pos, parentPtr, tree);
     } else if (node -> rightNode != -1 && rightPtr -> parent == node -> parent) {
         int pos;
         int prtChildrenLen = parentPtr -> children.size();
@@ -483,13 +486,13 @@ void deleteNonLeaf(int pos, BPTreeNode<T>* node) {
         // maintain right to empty
 
         node -> write(2);
-        deleteNonLeaf<T>(pos, parentPtr);
+        deleteNonLeaf<T>(pos, parentPtr, tree);
         // node -> write()
     }
 }
 
 template <class T>
-bool BPTreeNode<T>::inflateLeaf() {
+bool BPTreeNode<T>::inflateLeaf(BPTree<T>* tree) {
     int thisSize = keys.size();
     BPTreeNode<T>* leftPtr = NULL;
     BPTreeNode<T>* rightPtr = NULL;
@@ -550,7 +553,7 @@ bool BPTreeNode<T>::inflateLeaf() {
         delete leftPtr;
         delete rightPtr;
         write(1); // to flash head
-        deleteNonLeaf<T>(pos, parentPtr); // may also flash head, however we flashed once, the head was updated by write(1)
+        deleteNonLeaf<T>(pos, parentPtr, tree); // may also flash head, however we flashed once, the head was updated by write(1)
         write(3); // to flash values
     } else if (rightNode != -1 && rightPtr -> parent == parent) {
         thisSize = rightPtr -> keyNum();
@@ -576,7 +579,7 @@ bool BPTreeNode<T>::inflateLeaf() {
         delete leftPtr;
         delete rightPtr;
         write(1);
-        deleteNonLeaf<T>(pos, parentPtr);
+        deleteNonLeaf<T>(pos, parentPtr, tree);
         write(3);
     }
     // root and leaf
@@ -592,13 +595,13 @@ private:
     int keyLen;
     int rtID;
     BPNodePtr findNodeWithKey(const T& key);       // returns b+ node pointer
-    const int N;
+    int N;
     int count;
     int firstEmpty;
     void updateHeader();
 
 public:
-    BPTree(string _fileName);
+    BPTree<T>(string _fileName);
     int root() {
         return rtID;
     }
@@ -677,11 +680,11 @@ std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
     BPNodePtr endBlock = findNodeWithKey(end);
     BPNodePtr cur = beginBlock;
     std::vector<int> ret;
-    auto L = std::lower_bound(beginBlock -> records.begin(), beginBlock -> records.end(), st);
-    auto R = std::upper_bound(endBlock -> records.begin(), endBlock -> records.end(), end);
+    auto L = std::lower_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), st);
+    auto R = std::upper_bound(endBlock -> keys.begin(), endBlock -> keys.end(), end);
     if (beginBlock -> blockID == endBlock -> blockID) {
         for (auto it = L; it != R; it++) {
-            ret.push_back(*it);
+            ret.push_back(beginBlock -> records[it - beginBlock -> keys.begin()]);
         }
         delete beginBlock;
         delete endBlock;
@@ -691,7 +694,7 @@ std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
         ret.push_back(*L);
     }
     while(cur -> rightNode != endBlock -> blockID) {
-        cur = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, 2);
+        cur = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, N, 2);
         cur -> dirtyLevel = 0;
         for (auto it = cur -> records.begin(); it != cur -> records.end(); it++) {
             ret.push_back(*it);
@@ -745,7 +748,7 @@ bool BPTree<T>::deleteRecordWithKey(const T& key) {
         updateHeader();
         return true;
     }
-    toDelete -> inflateLeaf();
+    toDelete -> inflateLeaf(this);
     BPNodePtr rootPtr = new BPTreeNode<T>(fileName, rtID, keyLen, N, 2);
     if (rootPtr -> children.size() == 1) {
         removeBlock(rtID);

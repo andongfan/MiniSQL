@@ -6,19 +6,31 @@ using std::string;
 
 template<class T>
 class IndexManager {
+public:
     string fileName;
-    IndexManager(string indexName, string tableName, string attrName);
+    int typeLen;
+    IndexManager(string indexName, string tableName, string attrName, int typeLen);
     int findSingleRecordWithKey(const T& key);
     vector<int> findRecordsWithRange(const T& st, const T& ed);
     bool insertRecordWithKey(const T& key, int recordID);
     bool deleteRecordByKey(const T& key);
-    bool createIndex(int typeLen);
+    bool createIndex();
     bool dropIndex();
+
+    // debug
+    void printTree();
 };
 
 template<class T>
-IndexManager<T>::IndexManager(string indexName, string tableName, string attrName) {
+void IndexManager<T>::printTree() {
+    BPTree<T> bPlusTree(fileName);
+    bPlusTree.print();
+}
+
+template<class T>
+IndexManager<T>::IndexManager(string indexName, string tableName, string attrName, int _typeLen) {
     fileName = indexName + "_" + tableName + "_" + attrName + ".data";
+    typeLen = _typeLen;
 }
 
 template<class T>
@@ -47,7 +59,7 @@ bool IndexManager<T>::deleteRecordByKey(const T& key) {
 }
 
 template<class T>
-bool IndexManager<T>::createIndex(int typeLen) {
+bool IndexManager<T>::createIndex() {
     int order = (BLOCK_SIZE - 20) / (typeLen + 4) + 1;
     int page = buf_mgr.getPageId(fileName, 0);
     buf_mgr.pinPage(page);
