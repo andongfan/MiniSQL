@@ -5,5 +5,5 @@
 struct Index {
     std::string name;
     std::string table_name;
-    std::string attbr_name;
+    std::string attrb_name;
 };

@@ -95,6 +95,14 @@ static void CreateIndex(const CreateIndexStmt &stmt) {
         throw SQLExecError("table '" + stmt.table_name +
             "' doesn't have an attribute named '" + stmt.attrb_name + "'");
     }
+    auto attrb = table.GetAttrb(stmt.attrb_name);
+    if (!attrb.is_unique) {
+        throw SQLExecError("'" + attrb.name + "' is not an unique attribue");
+    }
+    if (attrb.index != "") {
+        throw SQLExecError("an index named '" + attrb.index +
+            "' has already been built on attribute '" + attrb.name + "'");
+    }
     cat_mgr.NewIndex(stmt.name, stmt.table_name, stmt.attrb_name);
 }
 
@@ -192,11 +200,17 @@ static void Execfile(const ExecfileStmt &stmt) {
     }
 }
 
-static void Quit(const QuitStmt &stmt) {
+namespace minisql {
+
+void Initialize() {
+    cat_mgr.Load();
     // TODO
 }
 
-namespace minisql {
+void Finalize() {
+    cat_mgr.Save();
+    // TODO
+}
 
 void Print(const SQLStatement &stmt) {
     if (auto p = std::get_if<CreateTableStmt>(&stmt)) {
@@ -261,8 +275,6 @@ std::chrono::duration<double> Execute(const SQLStatement &stmt) {
         Delete(*p);
     } else if (auto p = std::get_if<SelectStmt>(&stmt)) {
         Select(*p);
-    } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
-        Quit(*p);
     } else if (auto p = std::get_if<ExecfileStmt>(&stmt)) {
         Execfile(*p);
     }

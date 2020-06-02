@@ -14,4 +14,7 @@ struct Table {
     bool HasAttrb(const std::string &name) const;
     Attribute GetAttrb(const std::string &name) const;
     int Size() const;
+
+    std::string Serialize() const;
+    static Table Parse(const char *&pstr);
 };
