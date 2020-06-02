@@ -2,7 +2,7 @@
 #include "Page.hpp"
 #include <iostream>
 
-const int FRAME_SIZE = 256;
+const int FRAME_SIZE = 256 * 64;
 BufferManager::BufferManager()
 {
     pages = new Page[FRAME_SIZE];
@@ -12,7 +12,10 @@ BufferManager::~BufferManager()
 {
     for (int i = 0; i < FRAME_SIZE; ++i)
     {
-        pages[i].storeFile();
+        if (pages[i].getDirty())
+        {
+            pages[i].storeFile();
+        }
     }
     delete[] pages;
 }
@@ -82,4 +85,16 @@ void BufferManager::dirtPage(int pageId)
 void BufferManager::unpinPage(int pageId)
 {
     pages[pageId].setPin(false);
+}
+
+void BufferManager::deletePageWithName(const std::string &filename)
+{
+    for (int i = 0; i < FRAME_SIZE; ++i)
+    {
+        if (pages[i].getFilename() == filename)
+        {
+            pages[i].setDirty(0);
+            pages[i].setPin(0);
+        }
+    }
 }
