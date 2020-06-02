@@ -12,7 +12,7 @@ enum class CondType {
     EQUAL,
     NOT_EQUAL,
     LESS,
-    LESSS_EQUAL,
+    LESS_EQUAL,
     GREAT,
     GREAT_EQUAL
 };
@@ -59,6 +59,8 @@ struct DeleteStmt {
 
 struct SelectStmt {
     std::string table_name;
+    bool all = false;
+    std::vector<std::string> attrb_names;
     std::vector<Condition> conds;
 };
 

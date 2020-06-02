@@ -4,7 +4,8 @@
 
 #include "Attribute.h"
 
-struct Table {
+struct Table
+{
     std::string name;
     std::vector<Attribute> attrbs;
     int n_tuples;
@@ -14,4 +15,7 @@ struct Table {
     bool HasAttrb(const std::string &name) const;
     Attribute GetAttrb(const std::string &name) const;
     int Size() const;
+
+    std::string Serialize() const;
+    static Table Parse(const char *&pstr);
 };

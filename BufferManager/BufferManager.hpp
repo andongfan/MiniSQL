@@ -23,6 +23,7 @@ public:
     void dirtPage(int pageId);
     void unpinPage(int pageId);
     void undirtPage(int pageId);
+    void deletePageWithName(const std::string &filename);
 };
 
 extern BufferManager buf_mgr;

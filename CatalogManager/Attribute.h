@@ -17,4 +17,7 @@ struct Attribute {
     std::string index = "";
 
     int Size() const;
+
+    std::string Serialize() const;
+    static Attribute Parse(const char *&pstr);
 };

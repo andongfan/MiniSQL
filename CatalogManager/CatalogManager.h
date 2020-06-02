@@ -21,9 +21,12 @@ class CatalogManager {
     Table GetTable(const std::string &name) const;
     Index GetIndex(const std::string &name) const;
 
+    void Load();
+    void Save();
+
   private:
     std::unordered_map<std::string, Table> tables;
     std::unordered_map<std::string, Index> indices;
-};
 
-extern CatalogManager cat_mgr;
+    inline static const std::string cat_mgr_file = "cat_mgr.data";
+};

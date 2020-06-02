@@ -8,5 +8,5 @@ target_include_directories(API
 )
 
 target_link_libraries(API
-    PUBLIC interpreter
+    PUBLIC interpreter record_manager
 )

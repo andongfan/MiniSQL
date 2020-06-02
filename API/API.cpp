@@ -1,20 +1,28 @@
 #include "API.h"
 
-#include <iostream>
+#include <algorithm>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
 
-#include "CatalogManager.h"
 #include "SQLExecError.h"
 #include "Interpreter.h"
 
-static void PrintVal(const Value &val) {
+static std::string Val2Str(const Value &val, bool quote = false) {
+    std::string str;
     if (auto pv = std::get_if<int>(&val)) {
-        std::cout << *pv;
+        str = std::to_string(*pv);
     } else if (auto pv = std::get_if<double>(&val)) {
-        std::cout << *pv;
+        str = std::to_string(*pv);
     } else if (auto pv = std::get_if<std::string>(&val)) {
-        std::cout << "'" << *pv << "'";
+        if (quote) {
+            str = "'" + *pv + "'";
+        } else {
+            str = *pv;
+        }
     }
+    return str;
 }
 
 static void PrintConds(const std::vector<Condition> &conds) {
@@ -35,7 +43,7 @@ static void PrintConds(const std::vector<Condition> &conds) {
             std::cout << " <> ";
         } else if (cond.type == CondType::LESS) {
             std::cout << " < ";
-        } else if (cond.type == CondType::LESSS_EQUAL) {
+        } else if (cond.type == CondType::LESS_EQUAL) {
             std::cout << " <= ";
         } else if (cond.type == CondType::GREAT) {
             std::cout << " > ";
@@ -43,7 +51,7 @@ static void PrintConds(const std::vector<Condition> &conds) {
             std::cout << " >= ";
         }
 
-        PrintVal(cond.val);
+        std::cout << Val2Str(cond.val, true);
     }
     if (!conds.empty()) {
         std::cout << std::endl;
@@ -63,6 +71,61 @@ static std::string OrderStr(int i) {
     }
 }
 
+static void PrintTable(const Table &table,
+        const std::vector<std::vector<Value>> &datas,
+        const std::vector<std::string> &attrb_names) {
+    int N = table.attrbs.size();
+    if (!attrb_names.empty()) {
+        N = attrb_names.size();
+    }
+    std::vector<int> ord(N);
+    if (attrb_names.empty()) {
+        for (int i = 0; i < N; i++) ord[i] = i;
+    } else {
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < table.attrbs.size(); j++) {
+                if (table.attrbs[j].name == attrb_names[i]) {
+                    ord[i] = j;
+                    break;
+                }
+            }
+        }
+    }
+    std::vector<size_t> vec_len(N);
+    for (int i = 0; i < N; i++) {
+        vec_len[i] = table.attrbs[ord[i]].name.size();
+    }
+    for (const auto &row : datas) {
+        for (int i = 0; i < N; i++) {
+            vec_len[i] = std::max(vec_len[i], Val2Str(row[ord[i]]).size());
+        }
+    }
+    std::string split_str = "+";
+    for (auto &i : vec_len) {
+        ++i;
+        split_str += std::string(i, '-') + "+";
+    }
+
+    std::cout << "\n" << std::left << split_str << std::endl;
+    for (int i = 0; i < N; i++) {
+        std::cout << "|" << std::setw(vec_len[i]) << table.attrbs[ord[i]].name;
+    }
+    std::cout << "|\n" << split_str << std::endl;
+    for (const auto &row : datas) {
+        for (int i = 0; i < N; i++) {
+            std::cout << "|" << std::setw(vec_len[i]) << Val2Str(row[ord[i]]);
+        }
+        std::cout << "|\n" << split_str << std::endl;
+    }
+
+    int n_row = datas.size();
+    if (n_row > 1) {
+        std::cout << n_row << " rows returned" << std::endl;
+    } else {
+        std::cout << n_row << " row returned" << std::endl;
+    }
+}
+
 static bool CheckType(const Attribute &attrb, const Value &val) {
     if (attrb.type == AttrbType::INT) {
         return std::get_if<int>(&val) != nullptr;
@@ -74,15 +137,211 @@ static bool CheckType(const Attribute &attrb, const Value &val) {
     }
 }
 
-static void CreateTable(const CreateTableStmt &stmt) {
+static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
+    std::sort(conds.begin(), conds.end(),
+        [](const Condition &a, const Condition &b) {
+            return a.attrb < b.attrb;
+        });
+
+    std::vector<Condition> new_conds;
+    for (int i = 0, last = 0; i < conds.size(); i++) {
+        if (i + 1 == conds.size() || conds[i].attrb != conds[i + 1].attrb) {
+            auto attrb = conds[i].attrb;
+            auto ty = table.GetAttrb(attrb).type;
+            if (ty == AttrbType::INT) {
+                int lower_bound = std::numeric_limits<int>::max();
+                int upper_bound = std::numeric_limits<int>::min();
+                int eq_val;
+                bool has_eq_val = false;
+                for (int j = last; j <= i; j++) {
+                    auto cty = conds[j].type;
+                    int tmp = std::get<int>(conds[j].val);
+                    if (cty == CondType::EQUAL) {
+                        if (has_eq_val && tmp != eq_val) {
+                            return true;
+                        }
+                        has_eq_val = true;
+                        eq_val = tmp;
+                    } else if (cty == CondType::LESS) {
+                        upper_bound = std::min(upper_bound, tmp - 1);
+                    } else if (cty == CondType::LESS_EQUAL) {
+                        upper_bound = std::min(upper_bound, tmp);
+                    } else if (cty == CondType::GREAT) {
+                        lower_bound = std::max(lower_bound, tmp + 1);
+                    } else if (cty == CondType::LESS) {
+                        lower_bound = std::max(lower_bound, tmp);
+                    }
+                }
+                if (lower_bound > upper_bound) {
+                    return true;
+                }
+                new_conds.emplace_back(attrb, lower_bound, CondType::GREAT_EQUAL);
+                new_conds.emplace_back(attrb, upper_bound, CondType::LESS_EQUAL);
+                for (int j = last; j <= i; j++) {
+                    if (conds[j].type == CondType::NOT_EQUAL) {
+                        int tmp = std::get<int>(conds[j].val);
+                        if (tmp >= lower_bound && tmp <= upper_bound) {
+                            new_conds.emplace_back(attrb, tmp,
+                                CondType::NOT_EQUAL);
+                        }
+                    }
+                }
+            } else if (ty == AttrbType::FLOAT) {
+                double lb_e = std::numeric_limits<double>::max();
+                double lb_ne = std::numeric_limits<double>::max();
+                double ub_e = std::numeric_limits<double>::min();
+                double ub_ne = std::numeric_limits<double>::min();
+                double eq_val;
+                bool has_eq_val = false;
+                for (int j = last; j <= i; j++) {
+                    auto cty = conds[j].type;
+                    double tmp;
+                    if (auto p = std::get_if<int>(&conds[j].val)) {
+                        tmp = *p;
+                    } else {
+                        tmp = std::get<double>(conds[j].val);
+                    }
+                    if (cty == CondType::EQUAL) {
+                        if (has_eq_val && tmp != eq_val) {
+                            return true;
+                        }
+                        has_eq_val = true;
+                        eq_val = tmp;
+                    } else if (cty == CondType::LESS) {
+                        ub_ne = std::min(ub_ne, tmp);
+                    } else if (cty == CondType::LESS_EQUAL) {
+                        ub_e = std::min(ub_e, tmp);
+                    } else if (cty == CondType::GREAT) {
+                        lb_ne = std::max(lb_ne, tmp);
+                    } else if (cty == CondType::LESS) {
+                        lb_e = std::max(lb_e, tmp);
+                    }
+                }
+                double lower_bound;
+                double upper_bound;
+                bool has_ne = false;
+                if (ub_ne <= ub_e) {
+                    new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    upper_bound = ub_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    upper_bound = ub_e;
+                }
+                if (lb_ne >= lb_e) {
+                    new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    lower_bound = lb_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    lower_bound = lb_e;
+                }
+                if (lower_bound > upper_bound ||
+                        (lower_bound == upper_bound && has_ne)) {
+                    return true;
+                }
+                for (int j = last; j <= i; j++) {
+                    if (conds[j].type == CondType::NOT_EQUAL) {
+                        double tmp;
+                        if (auto p = std::get_if<int>(&conds[j].val)) {
+                            tmp = *p;
+                        } else {
+                            tmp = std::get<double>(conds[j].val);
+                        }
+                        if (tmp >= lower_bound && tmp <= upper_bound) {
+                            new_conds.emplace_back(attrb, tmp,
+                                CondType::NOT_EQUAL);
+                        }
+                    }
+                }
+            } else {
+                std::string lb_e = "\xff";
+                std::string lb_ne = "\xff";
+                std::string ub_e = "\0";
+                std::string ub_ne = "\0";
+                std::string eq_val;
+                bool has_eq_val = false;
+                for (int j = last; j <= i; j++) {
+                    auto cty = conds[j].type;
+                    auto tmp = std::get<std::string>(conds[j].val);
+                    if (cty == CondType::EQUAL) {
+                        if (has_eq_val && tmp != eq_val) {
+                            return true;
+                        }
+                        has_eq_val = true;
+                        eq_val = tmp;
+                    } else if (cty == CondType::LESS) {
+                        ub_ne = std::min(ub_ne, tmp);
+                    } else if (cty == CondType::LESS_EQUAL) {
+                        ub_e = std::min(ub_e, tmp);
+                    } else if (cty == CondType::GREAT) {
+                        lb_ne = std::max(lb_ne, tmp);
+                    } else if (cty == CondType::LESS) {
+                        lb_e = std::max(lb_e, tmp);
+                    }
+                }
+                std::string lower_bound;
+                std::string upper_bound;
+                bool has_ne = false;
+                if (ub_ne <= ub_e) {
+                    new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    upper_bound = ub_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    upper_bound = ub_e;
+                }
+                if (lb_ne >= lb_e) {
+                    new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    lower_bound = lb_ne;
+                    has_ne = true;
+                } else {
+                    new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    lower_bound = lb_e;
+                }
+                if (lower_bound > upper_bound ||
+                        (lower_bound == upper_bound && has_ne)) {
+                    return true;
+                }
+                for (int j = last; j <= i; j++) {
+                    if (conds[j].type == CondType::NOT_EQUAL) {
+                        auto tmp = std::get<std::string>(conds[j].val);
+                        if (tmp >= lower_bound && tmp <= upper_bound) {
+                            new_conds.emplace_back(attrb, tmp,
+                                CondType::NOT_EQUAL);
+                        }
+                    }
+                }
+            }
+            last = i + 1;
+        }
+    }
+    conds.swap(new_conds);
+    return false;
+}
+
+MiniSQL::MiniSQL() {
+    RM::bm = new BufferManager;
+    cat_mgr.Load();
     // TODO
+}
+MiniSQL::~MiniSQL() {
+    cat_mgr.Save();
+    delete RM::bm;
+    // TODO
+}
+
+void MiniSQL::CreateTable(const CreateTableStmt &stmt) {
     if (cat_mgr.CheckName(stmt.name)) {
         throw SQLExecError("duplicated table name '" + stmt.name + "'");
     }
     cat_mgr.NewTable(stmt.name, stmt.attrbs);
+
+    auto table = cat_mgr.GetTable(stmt.name);
+    RM::CreateTable(table);
 }
 
-static void CreateIndex(const CreateIndexStmt &stmt) {
+void MiniSQL::CreateIndex(const CreateIndexStmt &stmt) {
     // TODO
     if (cat_mgr.CheckName(stmt.name)) {
         throw SQLExecError("duplicated index name '" + stmt.name + "'");
@@ -95,18 +354,29 @@ static void CreateIndex(const CreateIndexStmt &stmt) {
         throw SQLExecError("table '" + stmt.table_name +
             "' doesn't have an attribute named '" + stmt.attrb_name + "'");
     }
+    auto attrb = table.GetAttrb(stmt.attrb_name);
+    if (!attrb.is_unique) {
+        throw SQLExecError("'" + attrb.name + "' is not an unique attribue");
+    }
+    if (attrb.index != "") {
+        throw SQLExecError("an index named '" + attrb.index +
+            "' has already been built on attribute '" + attrb.name + "'");
+    }
     cat_mgr.NewIndex(stmt.name, stmt.table_name, stmt.attrb_name);
 }
 
-static void DropTable(const DropTableStmt &stmt) {
-    // TODO
+void MiniSQL::DropTable(const DropTableStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.name)) {
         throw SQLExecError("no table named '" + stmt.name + "'");
     }
+
+    auto table = cat_mgr.GetTable(stmt.name);
+    RM::DropTable(table);
+
     cat_mgr.DropTable(stmt.name);
 }
 
-static void DropIndex(const DropIndexStmt &stmt) {
+void MiniSQL::DropIndex(const DropIndexStmt &stmt) {
     // TODO
     if (!cat_mgr.CheckIndex(stmt.name)) {
         throw SQLExecError("no index named '" + stmt.name + "'");
@@ -114,8 +384,7 @@ static void DropIndex(const DropIndexStmt &stmt) {
     cat_mgr.DropIndex(stmt.name);
 }
 
-static void Insert(const InsertStmt &stmt) {
-    // TODO
+void MiniSQL::Insert(const InsertStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.name)) {
         throw SQLExecError("no table named '" + stmt.name + "'");
     }
@@ -126,6 +395,7 @@ static void Insert(const InsertStmt &stmt) {
             std::to_string(stmt.vals.size()) + " values are given");
     }
     int N = stmt.vals.size();
+    std::vector<Value> vals;
     for (int i = 0; i < N; i++) {
         auto attrb = table.attrbs[i];
         auto val = stmt.vals[i];
@@ -133,11 +403,21 @@ static void Insert(const InsertStmt &stmt) {
             throw SQLExecError("value type of the " + OrderStr(i + 1) +
                 " attribute doesn't match");
         }
+        if (attrb.type == AttrbType::FLOAT) {
+            if (auto p = std::get_if<int>(&val)) {
+                vals.emplace_back(double(*p));
+            } else {
+                vals.emplace_back(std::get<double>(val));
+            }
+        } else {
+            vals.emplace_back(val);
+        }
     }
+
+    RM::InsertRecord(table, vals);
 }
 
-static void Delete(const DeleteStmt &stmt) {
-    // TODO
+void MiniSQL::Delete(const DeleteStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
@@ -155,10 +435,16 @@ static void Delete(const DeleteStmt &stmt) {
                 " constrain doesn't match");
         }
     }
+
+    auto conds = stmt.conds;
+    if (MergeConditions(table, conds)) {
+        return;
+    }
+
+    RM::DeleteRecord(table, conds);
 }
 
-static void Select(const SelectStmt &stmt) {
-    // TODO
+void MiniSQL::Select(const SelectStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
@@ -176,10 +462,30 @@ static void Select(const SelectStmt &stmt) {
                 " constrain doesn't match");
         }
     }
+    if (!stmt.all) {
+        for (const auto &attrb : stmt.attrb_names) {
+            if (!table.HasAttrb(attrb)) {
+                throw SQLExecError("table '" + stmt.table_name +
+                    "' doesn't have an attribute named '" + attrb + "'");
+            }
+        }
+    }
+
+    auto conds = stmt.conds;
+    if (MergeConditions(table, conds)) {
+        PrintTable(table, {}, {});
+        return;
+    }
+
+    auto datas = RM::SelectRecord(table, conds);
+    if (stmt.all) {
+        PrintTable(table, datas, {});
+    } else {
+        PrintTable(table, datas, stmt.attrb_names);
+    }
 }
 
-static void Execfile(const ExecfileStmt &stmt) {
-    // TODO
+void MiniSQL::Execfile(const ExecfileStmt &stmt) {
     std::ifstream fin(stmt.file_name);
     if (!fin) {
         throw SQLExecError("can't open '" + stmt.file_name + "'");
@@ -188,17 +494,15 @@ static void Execfile(const ExecfileStmt &stmt) {
     auto stmts = interpreter.ParseFile(stmt.file_name);
 
     for (const auto &stmt : stmts) {
-        minisql::Execute(stmt);
+        Execute(stmt);
     }
 }
 
-static void Quit(const QuitStmt &stmt) {
-    // TODO
+void MiniSQL::Quit(const QuitStmt &stmt) {
+    should_quit = true;
 }
 
-namespace minisql {
-
-void Print(const SQLStatement &stmt) {
+void MiniSQL::Print(const SQLStatement &stmt) {
     if (auto p = std::get_if<CreateTableStmt>(&stmt)) {
         std::cout << "create table " << p->name << " (" << std::endl;
         for (const auto &attrb : p->attrbs) {
@@ -228,15 +532,20 @@ void Print(const SQLStatement &stmt) {
     } else if (auto p = std::get_if<InsertStmt>(&stmt)) {
         std::cout << "insert into " << p->name << " values (";
         for (const auto &val : p->vals) {
-            PrintVal(val);
-            std::cout << "  ";
+            std::cout << Val2Str(val, true) << "  ";
         }
         std::cout << ")" << std::endl;
     } else if (auto p = std::get_if<DeleteStmt>(&stmt)) {
         std::cout << "delete from " << p->table_name << std::endl;
         PrintConds(p->conds);
     } else if (auto p = std::get_if<SelectStmt>(&stmt)) {
-        std::cout << "select * from " << p->table_name << std::endl;
+        std::string attrbs = "* ";
+        if (!p->all) {
+            for (const auto &str : p->attrb_names) {
+                attrbs += str + " ";
+            }
+        }
+        std::cout << "select " << attrbs << "from " << p->table_name << std::endl;
         PrintConds(p->conds);
     } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
         std::cout << "quit" << std::endl;
@@ -245,7 +554,7 @@ void Print(const SQLStatement &stmt) {
     }
 }
 
-std::chrono::duration<double> Execute(const SQLStatement &stmt) {
+std::chrono::duration<double> MiniSQL::Execute(const SQLStatement &stmt) {
     auto begin = std::chrono::high_resolution_clock::now();
     if (auto p = std::get_if<CreateTableStmt>(&stmt)) {
         CreateTable(*p);
@@ -261,13 +570,48 @@ std::chrono::duration<double> Execute(const SQLStatement &stmt) {
         Delete(*p);
     } else if (auto p = std::get_if<SelectStmt>(&stmt)) {
         Select(*p);
-    } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
-        Quit(*p);
     } else if (auto p = std::get_if<ExecfileStmt>(&stmt)) {
         Execfile(*p);
+    } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
+        Quit(*p);
     }
     auto end = std::chrono::high_resolution_clock::now();
     return end - begin;
 }
 
+static std::string GetStmtsString() {
+    std::string str;
+    std::cout << "minisql> ";
+    while (true) {
+        std::string line;
+        std::getline(std::cin, line);
+        str += line;
+        while (!line.empty() && isspace(line.back())) line.pop_back();
+        if (line.back() == ';') {
+            return str;
+        }
+        std::cout << "       > ";
+    }
+}
+
+void MiniSQL::MainLoop() {
+    while (!should_quit) {
+        try {
+            std::string str = GetStmtsString();
+            auto stmts = inter.Parse(str);
+            int i = 0;
+            for (const auto &stmt : stmts) {
+                // Print(stmt);
+                ++i;
+                std::cout << "statement " << i << ": ";
+                auto time = Execute(stmt);
+                std::cout << "executed successfully, time used: " <<
+                    time.count() << "s" << std::endl;
+            }
+        } catch (const SQLExecError &e) {
+            std::cout << e.what() << std::endl;
+        } catch (const RM::RecordError &e) {
+            std::cout << e.what() << std::endl;
+        }
+    }
 }
