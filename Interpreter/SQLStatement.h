@@ -59,6 +59,8 @@ struct DeleteStmt {
 
 struct SelectStmt {
     std::string table_name;
+    bool all = false;
+    std::vector<std::string> attrb_names;
     std::vector<Condition> conds;
 };
 

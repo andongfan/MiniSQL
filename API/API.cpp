@@ -72,15 +72,32 @@ static std::string OrderStr(int i) {
 }
 
 static void PrintTable(const Table &table,
-        const std::vector<std::vector<Value>> &datas) {
+        const std::vector<std::vector<Value>> &datas,
+        const std::vector<std::string> &attrb_names) {
     int N = table.attrbs.size();
+    if (!attrb_names.empty()) {
+        N = attrb_names.size();
+    }
+    std::vector<int> ord(N);
+    if (attrb_names.empty()) {
+        for (int i = 0; i < N; i++) ord[i] = i;
+    } else {
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < table.attrbs.size(); j++) {
+                if (table.attrbs[j].name == attrb_names[i]) {
+                    ord[i] = j;
+                    break;
+                }
+            }
+        }
+    }
     std::vector<size_t> vec_len(N);
     for (int i = 0; i < N; i++) {
-        vec_len[i] = table.attrbs[i].name.size();
+        vec_len[i] = table.attrbs[ord[i]].name.size();
     }
     for (const auto &row : datas) {
         for (int i = 0; i < N; i++) {
-            vec_len[i] = std::max(vec_len[i], Val2Str(row[i]).size());
+            vec_len[i] = std::max(vec_len[i], Val2Str(row[ord[i]]).size());
         }
     }
     std::string split_str = "+";
@@ -91,12 +108,12 @@ static void PrintTable(const Table &table,
 
     std::cout << "\n" << std::left << split_str << std::endl;
     for (int i = 0; i < N; i++) {
-        std::cout << "|" << std::setw(vec_len[i]) << table.attrbs[i].name;
+        std::cout << "|" << std::setw(vec_len[i]) << table.attrbs[ord[i]].name;
     }
     std::cout << "|\n" << split_str << std::endl;
     for (const auto &row : datas) {
         for (int i = 0; i < N; i++) {
-            std::cout << "|" << std::setw(vec_len[i]) << Val2Str(row[i]);
+            std::cout << "|" << std::setw(vec_len[i]) << Val2Str(row[ord[i]]);
         }
         std::cout << "|\n" << split_str << std::endl;
     }
@@ -445,15 +462,27 @@ void MiniSQL::Select(const SelectStmt &stmt) {
                 " constrain doesn't match");
         }
     }
+    if (!stmt.all) {
+        for (const auto &attrb : stmt.attrb_names) {
+            if (!table.HasAttrb(attrb)) {
+                throw SQLExecError("table '" + stmt.table_name +
+                    "' doesn't have an attribute named '" + attrb + "'");
+            }
+        }
+    }
 
     auto conds = stmt.conds;
     if (MergeConditions(table, conds)) {
-        PrintTable(table, {});
+        PrintTable(table, {}, {});
         return;
     }
 
     auto datas = RM::SelectRecord(table, conds);
-    PrintTable(table, datas);
+    if (stmt.all) {
+        PrintTable(table, datas, {});
+    } else {
+        PrintTable(table, datas, stmt.attrb_names);
+    }
 }
 
 void MiniSQL::Execfile(const ExecfileStmt &stmt) {
@@ -510,7 +539,13 @@ void MiniSQL::Print(const SQLStatement &stmt) {
         std::cout << "delete from " << p->table_name << std::endl;
         PrintConds(p->conds);
     } else if (auto p = std::get_if<SelectStmt>(&stmt)) {
-        std::cout << "select * from " << p->table_name << std::endl;
+        std::string attrbs = "* ";
+        if (!p->all) {
+            for (const auto &str : p->attrb_names) {
+                attrbs += str + " ";
+            }
+        }
+        std::cout << "select " << attrbs << "from " << p->table_name << std::endl;
         PrintConds(p->conds);
     } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
         std::cout << "quit" << std::endl;
@@ -566,7 +601,7 @@ void MiniSQL::MainLoop() {
             auto stmts = inter.Parse(str);
             int i = 0;
             for (const auto &stmt : stmts) {
-                // minisql::Print(stmt);
+                // Print(stmt);
                 ++i;
                 std::cout << "statement " << i << ": ";
                 auto time = Execute(stmt);

@@ -29,6 +29,4 @@ class CatalogManager {
     std::unordered_map<std::string, Index> indices;
 
     inline static const std::string cat_mgr_file = "cat_mgr.data";
-
-    friend class MiniSQL;
 };

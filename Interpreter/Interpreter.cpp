@@ -17,12 +17,21 @@ static char EscapeChar(char ch) {
     return ch;
 }
 
-static std::string GetString(const std::string &str, int &begin) {
+static std::string GetString(const std::string &str, int &begin,
+        bool fir_num = false) {
     int cnt = 0;
+    bool fir = true;
     for (; begin + cnt < str.size(); cnt++) {
         char ch = str[begin + cnt];
-        if (!isalnum(ch) && ch != '_') {
-            break;
+        if (fir && !fir_num) {
+            if (!isalpha(ch) && ch != '_') {
+                break;
+            }
+            fir = false;
+        } else {
+            if (!isalnum(ch) && ch != '_') {
+                break;
+            }
         }
     }
     int temp = begin;
@@ -289,7 +298,7 @@ Interpreter::ParseCreateTable(const std::string &stmt, int begin) const {
             ++begin;
 
             Forward(stmt, begin);
-            auto num_str = GetString(stmt, begin);
+            auto num_str = GetString(stmt, begin, true);
             if (!IsNumberStr(num_str)) {
                 std::string info("expected integer 1~255, found '");
                 info += num_str;
@@ -612,10 +621,31 @@ SelectStmt Interpreter::ParseSelect(const std::string &stmt, int begin) const {
     SelectStmt sql_stmt;
 
     Forward(stmt, begin);
-    if (begin >= stmt.size() || stmt[begin] != '*') {
-        throw SQLStmtError(stmt, ExpFndStr("*", stmt[begin]));
+    if (begin >= stmt.size()) {
+        throw SQLStmtError(stmt, "expected * or attribute name list");
     }
-    ++begin;
+    if (stmt[begin] == '*') {
+        sql_stmt.all = true;
+        ++begin;
+    } else {
+        while (true) {
+            Forward(stmt, begin);
+            auto str = GetString(stmt, begin);
+            if (str.size() == 0) {
+                throw SQLStmtError(stmt, "expected attribute name");
+            }
+            sql_stmt.attrb_names.emplace_back(str);
+            Forward(stmt, begin);
+            if (begin >= stmt.size()) {
+                throw SQLStmtError(stmt, "expected ',' or from");
+            } else if (stmt[begin] == ',') {
+                ++begin;
+                continue;
+            } else {
+                break;
+            }
+        }
+    }
 
     Forward(stmt, begin);
     auto from_str = GetString(stmt, begin);
