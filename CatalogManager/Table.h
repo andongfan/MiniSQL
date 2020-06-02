@@ -4,7 +4,8 @@
 
 #include "Attribute.h"
 
-struct Table {
+struct Table
+{
     std::string name;
     std::vector<Attribute> attrbs;
     int n_tuples;
