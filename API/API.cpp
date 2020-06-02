@@ -6,7 +6,6 @@
 #include <iostream>
 #include <limits>
 
-#include "CatalogManager.h"
 #include "SQLExecError.h"
 #include "Interpreter.h"
 
@@ -84,12 +83,11 @@ static void PrintTable(const Table &table,
             vec_len[i] = std::max(vec_len[i], Val2Str(row[i]).size());
         }
     }
-    int len_sum = 0;
+    std::string split_str = "+";
     for (auto &i : vec_len) {
         ++i;
-        len_sum += i;
+        split_str += std::string(i, '-') + "+";
     }
-    auto split_str = "+" + std::string(N - 1 + len_sum, '-') + "+";
 
     std::cout << "\n" << std::left << split_str << std::endl;
     for (int i = 0; i < N; i++) {
@@ -305,15 +303,28 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
     return false;
 }
 
-static void CreateTable(const CreateTableStmt &stmt) {
+MiniSQL::MiniSQL() {
+    RM::bm = new BufferManager;
+    cat_mgr.Load();
     // TODO
+}
+MiniSQL::~MiniSQL() {
+    cat_mgr.Save();
+    delete RM::bm;
+    // TODO
+}
+
+void MiniSQL::CreateTable(const CreateTableStmt &stmt) {
     if (cat_mgr.CheckName(stmt.name)) {
         throw SQLExecError("duplicated table name '" + stmt.name + "'");
     }
     cat_mgr.NewTable(stmt.name, stmt.attrbs);
+
+    auto table = cat_mgr.GetTable(stmt.name);
+    RM::CreateTable(table);
 }
 
-static void CreateIndex(const CreateIndexStmt &stmt) {
+void MiniSQL::CreateIndex(const CreateIndexStmt &stmt) {
     // TODO
     if (cat_mgr.CheckName(stmt.name)) {
         throw SQLExecError("duplicated index name '" + stmt.name + "'");
@@ -337,15 +348,18 @@ static void CreateIndex(const CreateIndexStmt &stmt) {
     cat_mgr.NewIndex(stmt.name, stmt.table_name, stmt.attrb_name);
 }
 
-static void DropTable(const DropTableStmt &stmt) {
-    // TODO
+void MiniSQL::DropTable(const DropTableStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.name)) {
         throw SQLExecError("no table named '" + stmt.name + "'");
     }
+
+    auto table = cat_mgr.GetTable(stmt.name);
+    RM::DropTable(table);
+
     cat_mgr.DropTable(stmt.name);
 }
 
-static void DropIndex(const DropIndexStmt &stmt) {
+void MiniSQL::DropIndex(const DropIndexStmt &stmt) {
     // TODO
     if (!cat_mgr.CheckIndex(stmt.name)) {
         throw SQLExecError("no index named '" + stmt.name + "'");
@@ -353,8 +367,7 @@ static void DropIndex(const DropIndexStmt &stmt) {
     cat_mgr.DropIndex(stmt.name);
 }
 
-static void Insert(const InsertStmt &stmt) {
-    // TODO
+void MiniSQL::Insert(const InsertStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.name)) {
         throw SQLExecError("no table named '" + stmt.name + "'");
     }
@@ -365,6 +378,7 @@ static void Insert(const InsertStmt &stmt) {
             std::to_string(stmt.vals.size()) + " values are given");
     }
     int N = stmt.vals.size();
+    std::vector<Value> vals;
     for (int i = 0; i < N; i++) {
         auto attrb = table.attrbs[i];
         auto val = stmt.vals[i];
@@ -372,11 +386,21 @@ static void Insert(const InsertStmt &stmt) {
             throw SQLExecError("value type of the " + OrderStr(i + 1) +
                 " attribute doesn't match");
         }
+        if (attrb.type == AttrbType::FLOAT) {
+            if (auto p = std::get_if<int>(&val)) {
+                vals.emplace_back(double(*p));
+            } else {
+                vals.emplace_back(std::get<double>(val));
+            }
+        } else {
+            vals.emplace_back(val);
+        }
     }
+
+    RM::InsertRecord(table, vals);
 }
 
-static void Delete(const DeleteStmt &stmt) {
-    // TODO
+void MiniSQL::Delete(const DeleteStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
@@ -399,10 +423,11 @@ static void Delete(const DeleteStmt &stmt) {
     if (MergeConditions(table, conds)) {
         return;
     }
+
+    RM::DeleteRecord(table, conds);
 }
 
-static void Select(const SelectStmt &stmt) {
-    // TODO
+void MiniSQL::Select(const SelectStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
@@ -426,10 +451,12 @@ static void Select(const SelectStmt &stmt) {
         PrintTable(table, {});
         return;
     }
+
+    auto datas = RM::SelectRecord(table, conds);
+    PrintTable(table, datas);
 }
 
-static void Execfile(const ExecfileStmt &stmt) {
-    // TODO
+void MiniSQL::Execfile(const ExecfileStmt &stmt) {
     std::ifstream fin(stmt.file_name);
     if (!fin) {
         throw SQLExecError("can't open '" + stmt.file_name + "'");
@@ -438,23 +465,15 @@ static void Execfile(const ExecfileStmt &stmt) {
     auto stmts = interpreter.ParseFile(stmt.file_name);
 
     for (const auto &stmt : stmts) {
-        minisql::Execute(stmt);
+        Execute(stmt);
     }
 }
 
-namespace minisql {
-
-void Initialize() {
-    cat_mgr.Load();
-    // TODO
+void MiniSQL::Quit(const QuitStmt &stmt) {
+    should_quit = true;
 }
 
-void Finalize() {
-    cat_mgr.Save();
-    // TODO
-}
-
-void Print(const SQLStatement &stmt) {
+void MiniSQL::Print(const SQLStatement &stmt) {
     if (auto p = std::get_if<CreateTableStmt>(&stmt)) {
         std::cout << "create table " << p->name << " (" << std::endl;
         for (const auto &attrb : p->attrbs) {
@@ -500,7 +519,7 @@ void Print(const SQLStatement &stmt) {
     }
 }
 
-std::chrono::duration<double> Execute(const SQLStatement &stmt) {
+std::chrono::duration<double> MiniSQL::Execute(const SQLStatement &stmt) {
     auto begin = std::chrono::high_resolution_clock::now();
     if (auto p = std::get_if<CreateTableStmt>(&stmt)) {
         CreateTable(*p);
@@ -518,9 +537,46 @@ std::chrono::duration<double> Execute(const SQLStatement &stmt) {
         Select(*p);
     } else if (auto p = std::get_if<ExecfileStmt>(&stmt)) {
         Execfile(*p);
+    } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
+        Quit(*p);
     }
     auto end = std::chrono::high_resolution_clock::now();
     return end - begin;
 }
 
+static std::string GetStmtsString() {
+    std::string str;
+    std::cout << "minisql> ";
+    while (true) {
+        std::string line;
+        std::getline(std::cin, line);
+        str += line;
+        while (!line.empty() && isspace(line.back())) line.pop_back();
+        if (line.back() == ';') {
+            return str;
+        }
+        std::cout << "       > ";
+    }
+}
+
+void MiniSQL::MainLoop() {
+    while (!should_quit) {
+        try {
+            std::string str = GetStmtsString();
+            auto stmts = inter.Parse(str);
+            int i = 0;
+            for (const auto &stmt : stmts) {
+                // minisql::Print(stmt);
+                ++i;
+                std::cout << "statement " << i << ": ";
+                auto time = Execute(stmt);
+                std::cout << "executed successfully, time used: " <<
+                    time.count() << "s" << std::endl;
+            }
+        } catch (const SQLExecError &e) {
+            std::cout << e.what() << std::endl;
+        } catch (const RM::RecordError &e) {
+            std::cout << e.what() << std::endl;
+        }
+    }
 }

@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <fstream>
 
-CatalogManager cat_mgr;
-
 void CatalogManager::NewTable(const std::string &name,
         const std::vector<Attribute> &attrbs) {
     tables[name] = Table { name, attrbs };

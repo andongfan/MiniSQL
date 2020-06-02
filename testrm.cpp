@@ -28,6 +28,7 @@ std::pair<int, int> newStudent(const std::string &id, const int age, const doubl
 
 int main()
 {
+    CatalogManager cat_mgr;
     std::vector<Attribute> v;
     Attribute id;
     id.name = "id";

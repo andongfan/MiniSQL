@@ -1,6 +1,7 @@
 #ifndef PAGE_HEADER
 #define PAGE_HEADER
 
+#include <ctime>
 #include <string>
 
 const int BLOCK_SIZE = 4096;
