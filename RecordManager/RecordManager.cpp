@@ -2,6 +2,7 @@
 #include <exception>
 #include <iostream>
 #include <algorithm>
+#include <cstdio>
 #define PIECE_SIZE (t.Size() + 1)
 #define PIECE_CAPACITY (BLOCK_SIZE / PIECE_SIZE)
 namespace RM
@@ -24,6 +25,7 @@ namespace RM
     void DropTable(Table &t)
     {
         bm->deletePageWithName(t.name);
+        remove((t.name + ".data").c_str());
     }
 
     static std::vector<Value> GetTuple(Table &t, char *p)
