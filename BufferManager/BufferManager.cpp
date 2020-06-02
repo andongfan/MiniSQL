@@ -83,3 +83,5 @@ void BufferManager::unpinPage(int pageId)
 {
     pages[pageId].setPin(false);
 }
+
+BufferManager buf_mgr;

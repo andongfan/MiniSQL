@@ -25,4 +25,5 @@ public:
     void undirtPage(int pageId);
 };
 
+extern BufferManager buf_mgr;
 #endif
