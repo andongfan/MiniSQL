@@ -242,25 +242,52 @@ namespace RM
                 throw RecordError("attribute " + t.attrbs[i].name + " not unique!");
             }
         }
+        
         int blockcount = GetBlockCount(t);
         int pageid = bm->getPageId(t.name, blockcount - 1); // try to insert record into the last page
         char *p = bm->getPageAddress(pageid);
 
+        std::pair<int, int> rec;
+        bool inserted = false;
         for (int offset = 0; offset < BLOCK_SIZE; offset += PIECE_SIZE)
         {
             if (p[offset] == 0) // found empty piece
             {
                 PutTuple(t, vals, p + offset);
-                return std::make_pair(pageid, offset);
+                rec = std::make_pair(pageid, offset);
+                inserted = true;
+                break;
             }
         }
 
-        // need to create a new page
-        t.n_blocks += 1;
-        int newpageid = bm->getPageId(t.name, blockcount);
-        char *np = bm->getPageAddress(newpageid);
-        PutTuple(t, vals, np);
-        return std::make_pair(newpageid, 0);
+        if (not inserted) {
+            // need to create a new page
+            t.n_blocks += 1;
+            int newpageid = bm->getPageId(t.name, blockcount);
+            char *np = bm->getPageAddress(newpageid);
+            PutTuple(t, vals, np);
+            rec = std::make_pair(newpageid, 0);
+        }
+
+        for (int i = 0; i < t.attrbs.size(); ++i)
+        {
+            if (t.attrbs[i].index != "")
+            {
+                if (t.attrbs[i].type == AttrbType::CHAR)
+                {
+                    IndexManager<std::string> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].char_len);
+                    im.insertRecordWithKey(std::get<std::string>(vals[i]), pair2id(t, rec));
+                } else if(t.attrbs[i].type == AttrbType::FLOAT) {
+                    IndexManager<double> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
+                    im.insertRecordWithKey(std::get<double>(vals[i]), pair2id(t, rec));
+                } else {
+                    IndexManager<int> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
+                    im.insertRecordWithKey(std::get<int>(vals[i]), pair2id(t, rec));
+                }
+            }
+        }
+
+        return rec;
     }
 
     static PieceVec Intersect(PieceVec p, PieceVec q)
@@ -302,6 +329,7 @@ namespace RM
             {
                 if (not flag)
                 {
+                    // std::cerr << "INDEX INVOLVED" << std::endl;
                     flag = true;
                     v = IndexSelect(t, t.GetAttrb(c.attrb), c);
                 }
@@ -353,11 +381,37 @@ namespace RM
     void DeleteRecord(Table &t, const std::vector<Condition> conds)
     {
         PieceVec v = SelectPos(t, conds);
+        std::vector<std::vector<Value>> vals;
         for (auto piece : v)
         {
             int pageid = bm->getPageId(t.name, piece.first);
             char *p = bm->getPageAddress(pageid);
+            vals.push_back(GetTuple(t, p + piece.second));
             p[piece.second] = 0;
+        }
+        for (int i = 0; i < t.attrbs.size(); ++i)
+        {
+            if (t.attrbs[i].index != "")
+            {
+                if (t.attrbs[i].type == AttrbType::CHAR)
+                {
+                    IndexManager<std::string> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].char_len);
+                    for (auto val : vals)
+                        im.deleteRecordByKey(std::get<std::string>(val[i]));
+                }
+                else if (t.attrbs[i].type == AttrbType::FLOAT)
+                {
+                    IndexManager<double> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
+                    for (auto val : vals)
+                        im.deleteRecordByKey(std::get<double>(val[i]));
+                }
+                else
+                {
+                    IndexManager<int> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
+                    for (auto val : vals)
+                        im.deleteRecordByKey(std::get<int>(val[i]));
+                }
+            }
         }
     }
 
@@ -377,10 +431,11 @@ namespace RM
     template <class T>
     static void BuildIndex(const std::string idxName, Table &t, int id, int len)
     {
-        std::cerr << "BuildIndex" << std::endl;
+        // std::cerr << "BuildIndex" << std::endl;
         IndexManager<T> im(idxName, t.name, t.attrbs[id].name, len);
+        im.createIndex();
         PieceVec v = SelectPos(t, std::vector<Condition>());
-        std::cerr << "Done Selecting all" << std::endl;
+        // std::cerr << "Done Selecting all" << std::endl;
         for (auto piece : v)
         {
             int pageid = bm->getPageId(t.name, piece.first);
@@ -392,11 +447,11 @@ namespace RM
 
     void CreateIndex(const std::string &idxName, Table &t, const std::string &attrb)
     {
-        std::cerr << "CreateIndex" << std::endl;
+        // std::cerr << "CreateIndex" << std::endl;
         for (int i = 0; i < t.attrbs.size(); ++i) {
             if (t.attrbs[i].name == attrb) {
                 if (t.attrbs[i].type == AttrbType::CHAR) {
-                    BuildIndex<string>(idxName, t, i, t.attrbs[i].Size() - 1);
+                    BuildIndex<string>(idxName, t, i, t.attrbs[i].char_len);
                 } else if (t.attrbs[i].type == AttrbType::FLOAT) {
                     BuildIndex<double>(idxName, t, i, t.attrbs[i].Size());
                 } else {
