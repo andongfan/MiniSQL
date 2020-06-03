@@ -296,9 +296,9 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     return true;
                 }
                 if (has_eq_val) {
-                    new_conds.pop_back();
-                    int tn = new_conds.size() - 1;
-                    new_conds[tn] = Condition(attrb, eq_val, CondType::EQUAL);
+                    int cnt = int(has_lb) + int(has_ub);
+                    while (cnt--) new_conds.pop_back();
+                    new_conds.emplace_back(attrb, eq_val, CondType::EQUAL);
                 }
                 for (int j = last; j <= i; j++) {
                     if (conds[j].type == CondType::NOT_EQUAL) {
@@ -315,10 +315,10 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     }
                 }
             } else {
-                std::string lb_e = "\xff";
-                std::string lb_ne = "\xff";
-                std::string ub_e = "\0";
-                std::string ub_ne = "\0";
+                std::string lb_e = "\0";
+                std::string lb_ne = "\0";
+                std::string ub_e = "\xff";
+                std::string ub_ne = "\xff";
                 std::string eq_val;
                 bool has_eq_val = false, has_lb = false, has_ub = false;
                 for (int j = last; j <= i; j++) {
@@ -386,9 +386,9 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     return true;
                 }
                 if (has_eq_val) {
-                    new_conds.pop_back();
-                    int tn = new_conds.size() - 1;
-                    new_conds[tn] = Condition(attrb, eq_val, CondType::EQUAL);
+                    int cnt = int(has_lb) + int(has_ub);
+                    while (cnt--) new_conds.pop_back();
+                    new_conds.emplace_back(attrb, eq_val, CondType::EQUAL);
                 }
                 for (int j = last; j <= i; j++) {
                     if (conds[j].type == CondType::NOT_EQUAL) {
@@ -429,7 +429,6 @@ void MiniSQL::CreateTable(const CreateTableStmt &stmt) {
 }
 
 void MiniSQL::CreateIndex(const CreateIndexStmt &stmt) {
-    // TODO
     if (cat_mgr.CheckName(stmt.name)) {
         throw SQLExecError("duplicated index name '" + stmt.name + "'");
     }
@@ -465,10 +464,14 @@ void MiniSQL::DropTable(const DropTableStmt &stmt) {
 }
 
 void MiniSQL::DropIndex(const DropIndexStmt &stmt) {
-    // TODO
     if (!cat_mgr.CheckIndex(stmt.name)) {
         throw SQLExecError("no index named '" + stmt.name + "'");
     }
+
+    auto index = cat_mgr.GetIndex(stmt.name);
+    auto &table = cat_mgr.GetTable(index.table_name);
+    RM::DropIndex(index.name, table, index.attrb_name);
+    
     cat_mgr.DropIndex(stmt.name);
 }
 
@@ -576,6 +579,7 @@ void MiniSQL::Select(const SelectStmt &stmt) {
 
 void MiniSQL::Execfile(const ExecfileStmt &stmt) {
     std::ifstream fin(stmt.file_name);
+    std::cout << "exec '" << stmt.file_name << "'" << std::endl;
     if (!fin) {
         throw SQLExecError("can't open '" + stmt.file_name + "'");
     }

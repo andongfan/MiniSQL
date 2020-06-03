@@ -146,6 +146,14 @@ NoAttrbStr(const std::string &attrb_name, const std::string &table_name) {
         table_name + "'";
 }
 
+std::string Interpreter::GetCurrPath() const {
+    std::string str;
+    for (const auto &s : file_stk) {
+        str += s;
+    }
+    return str;
+}
+
 SQLStatement Interpreter::ParseStmt(const std::string &stmt) const {
     for (int i = 0; i < stmt.size(); i++) {
         if (!isspace(stmt[i])) {
@@ -197,12 +205,20 @@ Interpreter::ParseFile(const std::string &file_name) const {
         return {};
     }
 
+    std::string path = file_name;
+    auto pos = path.rfind('/');
+    path = path.substr(0, pos);
+    if (!path.empty()) path += '/';
+    file_stk.push_back(path);
+
     std::string line, str;
     while (std::getline(fin, line)) {
         str += line;
     }
 
-    return Parse(str);
+    const auto &ret = Parse(str);
+    file_stk.pop_back();
+    return ret;
 }
 
 std::vector<SQLStatement> Interpreter::Parse(const std::string &str) const {
@@ -684,7 +700,7 @@ Interpreter::ParseExecfile(const std::string &stmt, int begin) const {
             break;
         }
     }
-    sql_stmt.file_name = stmt.substr(begin, cnt);
+    sql_stmt.file_name = GetCurrPath() + stmt.substr(begin, cnt);
     begin += cnt;
 
     Forward(stmt, begin);

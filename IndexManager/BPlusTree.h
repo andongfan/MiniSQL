@@ -1,6 +1,8 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <string>
+#include <algorithm>
 #include "../BufferManager/BufferManager.hpp"
 #define TEST_N 3
 #define NOT_VALID -1

@@ -21,4 +21,8 @@ class Interpreter {
     QuitStmt ParseQuit(const std::string &stmt, int begin) const;
 
     std::vector<Condition> ParseWhere(const std::string &stmt, int begin) const;
+
+    std::string GetCurrPath() const;
+
+    mutable std::vector<std::string> file_stk;
 };
