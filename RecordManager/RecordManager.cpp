@@ -68,7 +68,10 @@ namespace RM
         {
             if (a[i].type == AttrbType::FLOAT)
             {
-                double val = std::get<double>(v[i]);
+                double tmp;
+                if (auto p = std::get_if<double>(&v[i])) tmp = *p;
+                else tmp = std::get<int>(v[i]);
+                double val = tmp;
                 memcpy(p + offset, &val, a[i].Size());
             }
             else if (a[i].type == AttrbType::INT)
@@ -94,6 +97,37 @@ namespace RM
         return std::make_pair(id / PIECE_CAPACITY, id % PIECE_CAPACITY);
     }
 
+    template <typename T>
+    struct is_double
+    {
+        operator bool()
+        {
+            return false;
+        }
+    };
+
+    template <>
+    struct is_double<double>
+    {
+        operator bool()
+        {
+            return true;
+        }
+    };
+
+    template<class T>
+    static T myget(Value v) {
+        if (is_double<T>()){
+            T tmp;
+            if (auto p = std::get_if<double>(&v))
+                tmp = *p;
+            else
+                tmp = std::get<int>(v);
+            return tmp;
+        }
+        return std::get<T>(v);
+    }
+
     template<class T>
     static PieceVec IndexSelectTemp(Table &t, const Attribute &a, const Condition &c)
     {
@@ -116,7 +150,7 @@ namespace RM
         PieceVec res;
         IndexManager<T> im(a.index, t.name, a.name, len);
         if (c.type == CondType::EQUAL) {
-            std::pair<int, int> p = id2pair(t, im.findSingleRecordWithKey(std::get<T>(c.val)));
+            std::pair<int, int> p = id2pair(t, im.findSingleRecordWithKey(myget<T>(c.val)));
             res.push_back(p);
         } else {
             Value lb, rb;
@@ -126,10 +160,19 @@ namespace RM
                         std::string s = std::get<string>(c.val);
                         s[s.size() - 1] = '\0';
                         lb = s;
-                    } else if (a.type == AttrbType::FLOAT) {
-                        double d = std::get<double>(c.val) - 1;
+                    } else if (a.type == AttrbType::FLOAT)
+                    {
+                        double tmp;
+                        if (auto p = std::get_if<double>(&c.val))
+                            tmp = *p;
+                        else
+                            tmp = std::get<int>(c.val);
+                        double d = tmp - 1;
+                        
                         lb = d;
-                    } else {
+                    }
+                    else
+                    {
                         int i = std::get<int>(c.val) - 1;
                         lb = i;
                     }
@@ -154,7 +197,12 @@ namespace RM
                     }
                     else if (a.type == AttrbType::FLOAT)
                     {
-                        double d = std::get<double>(c.val) + 1;
+                        double tmp;
+                        if (auto p = std::get_if<double>(&c.val))
+                            tmp = *p;
+                        else
+                            tmp = std::get<int>(c.val);
+                        double d = tmp + 1;
                         rb = d;
                     }
                     else
@@ -180,10 +228,9 @@ namespace RM
                     rb = std::numeric_limits<int>::min();
                 }
             }
-            lb = std::get<T>(lb);
-            rb = std::get<T>(rb);
             std::vector<int> recs;
-            recs  = im.findRecordsWithRange(std::get<T>(lb), std::get<T>(rb));
+            
+            recs  = im.findRecordsWithRange(myget<T>(lb), myget<T>(rb));
             for (int r : recs) {
                 res.push_back(id2pair(t, r));
             }
@@ -222,7 +269,7 @@ namespace RM
                 {
                     std::vector<Value> vals = GetTuple(t, p + offset);
                     // std::cerr << vals.size() << std::endl;
-                    // std::cerr << std::get<std::string>(vals[id]) << ' ' << std::get<std::string>(v) << std::endl;
+                    // std::cerr << std::get<std::string>(vals[id]) << ' ' << q<std::string>(v) << std::endl;
                     if (vals[id] == v)
                     {
                         return false;
@@ -279,7 +326,12 @@ namespace RM
                     im.insertRecordWithKey(std::get<std::string>(vals[i]), pair2id(t, rec));
                 } else if(t.attrbs[i].type == AttrbType::FLOAT) {
                     IndexManager<double> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
-                    im.insertRecordWithKey(std::get<double>(vals[i]), pair2id(t, rec));
+                    double tmp;
+                    if (auto p = std::get_if<double>(&vals[i]))
+                        tmp = *p;
+                    else
+                        tmp = std::get<int>(vals[i]);
+                    im.insertRecordWithKey(tmp, pair2id(t, rec));
                 } else {
                     IndexManager<int> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
                     im.insertRecordWithKey(std::get<int>(vals[i]), pair2id(t, rec));
@@ -402,8 +454,14 @@ namespace RM
                 else if (t.attrbs[i].type == AttrbType::FLOAT)
                 {
                     IndexManager<double> im(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size());
-                    for (auto val : vals)
-                        im.deleteRecordByKey(std::get<double>(val[i]));
+                    for (auto val : vals) {
+                        double tmp;
+                        if (auto p = std::get_if<double>(&val[i]))
+                            tmp = *p;
+                        else
+                            tmp = std::get<int>(val[i]);
+                        im.deleteRecordByKey(tmp);
+                    }
                 }
                 else
                 {
@@ -441,7 +499,7 @@ namespace RM
             int pageid = bm->getPageId(t.name, piece.first);
             char *p = bm->getPageAddress(pageid);
             std::vector<Value> vec = GetTuple(t, p + piece.second);
-            im.insertRecordWithKey(std::get<T>(vec[id]), pair2id(t, piece));
+            im.insertRecordWithKey(myget<T>(vec[id]), pair2id(t, piece));
         }
     }
 
