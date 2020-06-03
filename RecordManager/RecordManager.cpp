@@ -207,7 +207,7 @@ namespace RM
                 {
                     if (p[offset] == 1)
                     {
-                        std::vector<Value> tup;
+                        std::vector<Value> tup = GetTuple(t, p + offset);
                         bool good = true;
                         for (Condition c : conds)
                         {
