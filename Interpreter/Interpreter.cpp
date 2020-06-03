@@ -196,6 +196,7 @@ SQLStatement Interpreter::ParseStmt(const std::string &stmt) const {
             }
         }
     }
+    throw SQLStmtError(stmt, "unknown statement");
 }
 
 std::vector<SQLStatement>
@@ -245,8 +246,18 @@ std::vector<SQLStatement> Interpreter::Parse(const std::string &str) const {
     }
     if (last + 1 < str.size()) {
         try {
-            auto stmt = ParseStmt(str.substr(last, str.size() - last));
-            stmts.push_back(stmt);
+            auto stmt_str = str.substr(last, str.size() - last);
+            bool flag = false;
+            for (char ch : stmt_str) {
+                if (!isspace(ch)) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (flag) {
+                auto stmt = ParseStmt(stmt_str);
+                stmts.push_back(stmt);
+            }
         } catch (const SQLStmtError &e) {
             std::cout << e.what() << std::endl;
             has_error = true;
