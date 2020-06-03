@@ -207,9 +207,13 @@ Interpreter::ParseFile(const std::string &file_name) const {
 
     std::string path = file_name;
     auto pos = path.rfind('/');
-    path = path.substr(0, pos);
-    if (!path.empty()) path += '/';
-    file_stk.push_back(path);
+    if (pos == -1) {
+        file_stk.push_back("");
+    } else {
+        path = path.substr(0, pos);
+        if (!path.empty()) path += '/';
+        file_stk.push_back(path);
+    }
 
     std::string line, str;
     while (std::getline(fin, line)) {
