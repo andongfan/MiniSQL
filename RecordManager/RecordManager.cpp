@@ -150,8 +150,11 @@ namespace RM
         PieceVec res;
         IndexManager<T> im(a.index, t.name, a.name, len);
         if (c.type == CondType::EQUAL) {
-            std::pair<int, int> p = id2pair(t, im.findSingleRecordWithKey(myget<T>(c.val)));
+            int tt = im.findSingleRecordWithKey(myget<T>(c.val));
+            if (tt != -1) {
+            std::pair<int, int> p = id2pair(t, tt);
             res.push_back(p);
+            }
         } else {
             Value lb, rb;
             if (c.type == CondType::GREAT || c.type == CondType::GREAT_EQUAL) {
@@ -481,7 +484,14 @@ namespace RM
         {
             int pageid = bm->getPageId(t.name, piece.first);
             char *p = bm->getPageAddress(pageid);
-            res.push_back(GetTuple(t, p + piece.second));
+            std::vector<Value> val = GetTuple(t, p + piece.second);
+            bool flag = true;
+            /*for (int i = 0 ; i < t.attrbs.size(); ++i) {
+                if (t.attrbs[i].type == AttrbType::CHAR && std::get<std::string>(val[i]) == "") {
+                    flag = false;
+                }
+            }*/
+            if (flag) res.push_back(GetTuple(t, p + piece.second));
         }
         return res;
     }
