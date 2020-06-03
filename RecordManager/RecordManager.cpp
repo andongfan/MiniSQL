@@ -90,11 +90,11 @@ namespace RM
 
     static int pair2id(const Table &t, std::pair<int, int> p)
     {
-        return p.first * PIECE_CAPACITY + p.second;
+        return p.first * PIECE_CAPACITY + p.second / PIECE_SIZE;
     }
 
     static std::pair<int,int> id2pair(const Table &t, int id) {
-        return std::make_pair(id / PIECE_CAPACITY, id % PIECE_CAPACITY);
+        return std::make_pair(id / PIECE_CAPACITY, id % PIECE_CAPACITY * PIECE_SIZE);
     }
 
     template <typename T>
