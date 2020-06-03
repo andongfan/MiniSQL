@@ -54,8 +54,11 @@ bool CatalogManager::CheckName(const std::string &name) const {
     return CheckTable(name) || CheckIndex(name);
 }
 
-Table CatalogManager::GetTable(const std::string &name) const {
+const Table &CatalogManager::GetTable(const std::string &name) const {
     return tables.at(name);
+}
+Table &CatalogManager::GetTable(const std::string &name) {
+    return tables[name];
 }
 
 Index CatalogManager::GetIndex(const std::string &name) const {

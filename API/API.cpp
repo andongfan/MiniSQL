@@ -148,9 +148,10 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
         if (i + 1 == conds.size() || conds[i].attrb != conds[i + 1].attrb) {
             auto attrb = conds[i].attrb;
             auto ty = table.GetAttrb(attrb).type;
+            // std::cout << "i = " << i << ", last = " << last << ", attrb = " << attrb << std::endl;
             if (ty == AttrbType::INT) {
-                int lower_bound = std::numeric_limits<int>::max();
-                int upper_bound = std::numeric_limits<int>::min();
+                int lower_bound = std::numeric_limits<int>::min();
+                int upper_bound = std::numeric_limits<int>::max();
                 int eq_val;
                 bool has_eq_val = false;
                 for (int j = last; j <= i; j++) {
@@ -162,6 +163,8 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         }
                         has_eq_val = true;
                         eq_val = tmp;
+                        lower_bound = std::max(lower_bound, tmp);
+                        upper_bound = std::min(upper_bound, tmp);
                     } else if (cty == CondType::LESS) {
                         upper_bound = std::min(upper_bound, tmp - 1);
                     } else if (cty == CondType::LESS_EQUAL) {
@@ -170,13 +173,23 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         lower_bound = std::max(lower_bound, tmp + 1);
                     } else if (cty == CondType::LESS) {
                         lower_bound = std::max(lower_bound, tmp);
+                    } else {
+                        if (has_eq_val && tmp == eq_val) {
+                            return true;
+                        }
                     }
                 }
                 if (lower_bound > upper_bound) {
                     return true;
                 }
-                new_conds.emplace_back(attrb, lower_bound, CondType::GREAT_EQUAL);
-                new_conds.emplace_back(attrb, upper_bound, CondType::LESS_EQUAL);
+                if (has_eq_val) {
+                    new_conds.emplace_back(attrb, eq_val, CondType::EQUAL);
+                } else {
+                    new_conds.emplace_back(attrb, lower_bound,
+                        CondType::GREAT_EQUAL);
+                    new_conds.emplace_back(attrb, upper_bound,
+                        CondType::LESS_EQUAL);
+                }
                 for (int j = last; j <= i; j++) {
                     if (conds[j].type == CondType::NOT_EQUAL) {
                         int tmp = std::get<int>(conds[j].val);
@@ -187,10 +200,10 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     }
                 }
             } else if (ty == AttrbType::FLOAT) {
-                double lb_e = std::numeric_limits<double>::max();
-                double lb_ne = std::numeric_limits<double>::max();
-                double ub_e = std::numeric_limits<double>::min();
-                double ub_ne = std::numeric_limits<double>::min();
+                double lb_e = std::numeric_limits<double>::min();
+                double lb_ne = std::numeric_limits<double>::min();
+                double ub_e = std::numeric_limits<double>::max();
+                double ub_ne = std::numeric_limits<double>::max();
                 double eq_val;
                 bool has_eq_val = false;
                 for (int j = last; j <= i; j++) {
@@ -207,6 +220,8 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         }
                         has_eq_val = true;
                         eq_val = tmp;
+                        lb_e = std::max(lb_e, tmp);
+                        ub_e = std::min(ub_e, tmp);
                     } else if (cty == CondType::LESS) {
                         ub_ne = std::min(ub_ne, tmp);
                     } else if (cty == CondType::LESS_EQUAL) {
@@ -215,6 +230,10 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         lb_ne = std::max(lb_ne, tmp);
                     } else if (cty == CondType::LESS) {
                         lb_e = std::max(lb_e, tmp);
+                    } else {
+                        if (has_eq_val && tmp == eq_val) {
+                            return true;
+                        }
                     }
                 }
                 double lower_bound;
@@ -239,6 +258,11 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 if (lower_bound > upper_bound ||
                         (lower_bound == upper_bound && has_ne)) {
                     return true;
+                }
+                if (has_eq_val) {
+                    new_conds.pop_back();
+                    int tn = new_conds.size() - 1;
+                    new_conds[tn] = Condition(attrb, eq_val, CondType::EQUAL);
                 }
                 for (int j = last; j <= i; j++) {
                     if (conds[j].type == CondType::NOT_EQUAL) {
@@ -278,6 +302,10 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         lb_ne = std::max(lb_ne, tmp);
                     } else if (cty == CondType::LESS) {
                         lb_e = std::max(lb_e, tmp);
+                    } else {
+                        if (has_eq_val && tmp == eq_val) {
+                            return true;
+                        }
                     }
                 }
                 std::string lower_bound;
@@ -302,6 +330,11 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 if (lower_bound > upper_bound ||
                         (lower_bound == upper_bound && has_ne)) {
                     return true;
+                }
+                if (has_eq_val) {
+                    new_conds.pop_back();
+                    int tn = new_conds.size() - 1;
+                    new_conds[tn] = Condition(attrb, eq_val, CondType::EQUAL);
                 }
                 for (int j = last; j <= i; j++) {
                     if (conds[j].type == CondType::NOT_EQUAL) {
@@ -337,7 +370,7 @@ void MiniSQL::CreateTable(const CreateTableStmt &stmt) {
     }
     cat_mgr.NewTable(stmt.name, stmt.attrbs);
 
-    auto table = cat_mgr.GetTable(stmt.name);
+    auto &table = cat_mgr.GetTable(stmt.name);
     RM::CreateTable(table);
 }
 
@@ -349,7 +382,7 @@ void MiniSQL::CreateIndex(const CreateIndexStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
-    auto table = cat_mgr.GetTable(stmt.table_name);
+    auto &table = cat_mgr.GetTable(stmt.table_name);
     if (!table.HasAttrb(stmt.attrb_name)) {
         throw SQLExecError("table '" + stmt.table_name +
             "' doesn't have an attribute named '" + stmt.attrb_name + "'");
@@ -370,7 +403,7 @@ void MiniSQL::DropTable(const DropTableStmt &stmt) {
         throw SQLExecError("no table named '" + stmt.name + "'");
     }
 
-    auto table = cat_mgr.GetTable(stmt.name);
+    auto &table = cat_mgr.GetTable(stmt.name);
     RM::DropTable(table);
 
     cat_mgr.DropTable(stmt.name);
@@ -388,7 +421,7 @@ void MiniSQL::Insert(const InsertStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.name)) {
         throw SQLExecError("no table named '" + stmt.name + "'");
     }
-    auto table = cat_mgr.GetTable(stmt.name);
+    auto &table = cat_mgr.GetTable(stmt.name);
     if (stmt.vals.size() != table.attrbs.size()) {
         throw SQLExecError("table '" + stmt.name + "' has " +
             std::to_string(table.attrbs.size()) + " attributes, but " +
@@ -421,7 +454,7 @@ void MiniSQL::Delete(const DeleteStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
-    auto table = cat_mgr.GetTable(stmt.table_name);
+    auto &table = cat_mgr.GetTable(stmt.table_name);
     int i = 0;
     for (const auto &cond : stmt.conds) {
         if (!table.HasAttrb(cond.attrb)) {
@@ -448,7 +481,7 @@ void MiniSQL::Select(const SelectStmt &stmt) {
     if (!cat_mgr.CheckTable(stmt.table_name)) {
         throw SQLExecError("no table named '" + stmt.table_name + "'");
     }
-    auto table = cat_mgr.GetTable(stmt.table_name);
+    auto &table = cat_mgr.GetTable(stmt.table_name);
     int i = 0;
     for (const auto &cond : stmt.conds) {
         if (!table.HasAttrb(cond.attrb)) {
@@ -476,8 +509,9 @@ void MiniSQL::Select(const SelectStmt &stmt) {
         PrintTable(table, {}, {});
         return;
     }
+    PrintConds(conds);
 
-    auto datas = RM::SelectRecord(table, conds);
+    const auto &datas = RM::SelectRecord(table, conds);
     if (stmt.all) {
         PrintTable(table, datas, {});
     } else {

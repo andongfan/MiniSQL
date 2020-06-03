@@ -18,7 +18,8 @@ class CatalogManager {
     bool CheckIndex(const std::string &name) const;
     bool CheckName(const std::string &name) const;
     
-    Table GetTable(const std::string &name) const;
+    const Table &GetTable(const std::string &name) const;
+    Table &GetTable(const std::string &name);
     Index GetIndex(const std::string &name) const;
 
     void Load();
