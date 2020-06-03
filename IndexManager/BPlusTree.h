@@ -681,27 +681,29 @@ std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
     BPNodePtr cur = beginBlock;
     std::vector<int> ret;
     auto L = std::lower_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), st);
-    auto R = std::upper_bound(endBlock -> keys.begin(), endBlock -> keys.end(), end);
     if (beginBlock -> blockID == endBlock -> blockID) {
-        for (auto it = L; it != R; it++) {
+        auto R = std::upper_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), end);
+        for (auto it = L; it != R; ++it) {
             ret.push_back(beginBlock -> records[it - beginBlock -> keys.begin()]);
         }
         delete beginBlock;
         delete endBlock;
         return ret;
     }
-    for (; L != beginBlock -> records.end(); L++) {
-        ret.push_back(*L);
+    auto R = std::upper_bound(endBlock -> keys.begin(), endBlock -> keys.end(), end);
+    for (; L != beginBlock -> keys.end(); L++) {
+        ret.push_back(beginBlock -> records[L - beginBlock -> keys.begin()]);
     }
     while(cur -> rightNode != endBlock -> blockID) {
-        cur = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, N, 2);
         cur -> dirtyLevel = 0;
-        for (auto it = cur -> records.begin(); it != cur -> records.end(); it++) {
-            ret.push_back(*it);
+        delete cur;
+        cur = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, N, 2);
+        for (auto it = cur -> keys.begin(); it != cur -> keys.end(); it++) {
+            ret.push_back(cur -> records[it - cur -> keys.begin()]);
         }
     }
-    for (auto it = endBlock -> records.begin(); it != R; it++) {
-        ret.push_back(*it);
+    for (auto it = endBlock -> keys.begin(); it != R; it++) {
+        ret.push_back(endBlock -> records[it - endBlock -> keys.begin()]);
     }
     delete beginBlock;
     delete endBlock;

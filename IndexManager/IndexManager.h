@@ -25,6 +25,7 @@ template<class T>
 void IndexManager<T>::printTree() {
     BPTree<T> bPlusTree(fileName);
     bPlusTree.print();
+    cout << "-------------\n";
 }
 
 template<class T>
@@ -61,6 +62,7 @@ bool IndexManager<T>::deleteRecordByKey(const T& key) {
 template<class T>
 bool IndexManager<T>::createIndex() {
     int order = (BLOCK_SIZE - 20) / (typeLen + 4) + 1;
+    // int order = 4;
     int page = buf_mgr.getPageId(fileName, 0);
     buf_mgr.pinPage(page);
     int count = 0;
