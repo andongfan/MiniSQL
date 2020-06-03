@@ -31,7 +31,11 @@ void IndexManager<T>::printTree() {
 template<class T>
 IndexManager<T>::IndexManager(string indexName, string tableName, string attrName, int _typeLen) {
     fileName = indexName + "_" + tableName + "_" + attrName + ".data";
-    typeLen = _typeLen;
+    if constexpr (std::is_same<T, std::string>()) {
+        typeLen = _typeLen + 1;
+    } else {
+        typeLen = _typeLen;
+    }
 }
 
 template<class T>

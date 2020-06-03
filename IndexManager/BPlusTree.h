@@ -93,8 +93,14 @@ public:
                 int pos = 20;
                 auto& copyfrom = isLeaf ? records : children;
                 memcpy(data + 12, &size, 4);
+                // int realLen = keyLen;
                 for (int i = 0; i < size; i++) {
-                    memcpy(data + pos, &keys[i], keyLen);
+                    if constexpr (std::is_same<T, std::string>()) {
+                        // realLen = keyLen + 1;
+                        memcpy(data + pos, keys[i].c_str(), keyLen);
+                    } else {
+                        memcpy(data + pos, &keys[i], keyLen);
+                    }
                     memcpy(data + pos + keyLen, &copyfrom[isLeaf ? i : (i + 1)], 4);
                     pos += keyLen + 4;
                 }
@@ -107,6 +113,9 @@ public:
 
 template <class T>
 BPTreeNode<T>::BPTreeNode(string _fileName, int _blockID, int _keyLen, int _N, int _dirtyLevel) : dirtyLevel(_dirtyLevel), fileName(_fileName), blockID(_blockID), keyLen(_keyLen), N(_N) {
+    // if constexpr (std::is_same<T, std::string>()) {
+    //     keyLen++;
+    // } 
     int page = buf_mgr.getPageId(fileName, blockID);
     buf_mgr.pinPage(page);
     char* data = buf_mgr.getPageAddress(page);
@@ -122,7 +131,13 @@ BPTreeNode<T>::BPTreeNode(string _fileName, int _blockID, int _keyLen, int _N, i
         int pos = 20;
         auto& copyto = isLeaf ? records : children;
         for (int i = 0; i < size; i++) {
-            keys.push_back(*reinterpret_cast<T*>(data + pos));
+            // int realLen = keyLen;
+            if constexpr (std::is_same<T, std::string>()) {
+                // realLen = keyLen + 1;
+                keys.push_back(string(reinterpret_cast<char*>(data + pos)));
+            } else {
+                keys.push_back(*reinterpret_cast<T*>(data + pos));
+            }
             copyto.push_back(*reinterpret_cast<int*>(data + pos + keyLen));
             pos += keyLen + 4;
         }
@@ -133,6 +148,9 @@ BPTreeNode<T>::BPTreeNode(string _fileName, int _blockID, int _keyLen, int _N, i
 
 template <class T>
 BPTreeNode<T>::BPTreeNode(string _fileName, int _blockID, int _keyLen, int _parent, int _N, bool _isLeaf) : fileName(_fileName), blockID(_blockID), keyLen(_keyLen), parent(_parent), N(_N), isLeaf(_isLeaf) {
+    // if constexpr (std::is_same<T, std::string>()) {
+    //     keyLen++;
+    // }
     if (isLeaf) children.push_back(-1);
     leftNode = rightNode = -1;
     dirtyLevel = 2;
@@ -155,8 +173,14 @@ BPTreeNode<T>::~BPTreeNode() {
             int pos = 20;
             auto& copyfrom = isLeaf ? records : children;
             memcpy(data + 12, &size, 4);
+            int realLen = keyLen;
             for (int i = 0; i < size; i++) {
-                memcpy(data + pos, &keys[i], keyLen);
+                if constexpr (std::is_same<T, std::string>()) {
+                    // realLen = keyLen + 1;
+                    memcpy(data + pos, keys[i].c_str(), keyLen);
+                } else {
+                    memcpy(data + pos, &keys[i], keyLen);
+                }
                 memcpy(data + pos + keyLen, &copyfrom[isLeaf ? i : (i + 1)], 4);
                 pos += keyLen + 4;
             }
@@ -558,8 +582,8 @@ bool BPTreeNode<T>::inflateLeaf(BPTree<T>* tree) {
     } else if (rightNode != -1 && rightPtr -> parent == parent) {
         thisSize = rightPtr -> keyNum();
         for (int i = 0; i < thisSize; i++) {
-            keys.push_back(rightPtr -> keys[i]);
-            records.push_back(rightPtr -> records[i]);
+            keys.push_back(rightPtr -> keys.front());
+            records.push_back(rightPtr -> records.front());
             rightPtr -> keys.erase(rightPtr -> keys.begin());
             rightPtr -> records.erase(rightPtr -> records.begin());
         }
