@@ -191,11 +191,11 @@ SQLStatement Interpreter::ParseStmt(const std::string &stmt) const {
             } else if (str == "execfile") {
                 return ParseExecfile(stmt, i);
             } else {
+            std::cout << "str: " << str << std::endl;
                 throw SQLStmtError(stmt, "unknown statement");
             }
         }
     }
-    throw SQLStmtError(stmt, "unknown statement");
 }
 
 std::vector<SQLStatement>
