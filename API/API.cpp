@@ -458,6 +458,12 @@ void MiniSQL::DropTable(const DropTableStmt &stmt) {
     }
 
     auto &table = cat_mgr.GetTable(stmt.name);
+    for (const auto &attrb : table.attrbs) {
+        if (attrb.index != "") {
+            auto index = cat_mgr.GetIndex(attrb.index);
+            RM::DropIndex(attrb.index, table, attrb.name);
+        }
+    }
     RM::DropTable(table);
 
     cat_mgr.DropTable(stmt.name);
