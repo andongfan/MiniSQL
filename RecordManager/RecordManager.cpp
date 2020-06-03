@@ -462,4 +462,17 @@ namespace RM
             }
         }
     }
+    void DropIndex(const std::string &idxName, Table &t, const std::string &attrb) {
+        int id;
+        for (int i = 0; i < t.attrbs.size(); ++i) {
+            if (t.attrbs[i].name == attrb) {
+                t.attrbs[i].index = "";
+                id = i;
+                break;
+            }
+        }
+        FILE *fp = fopen((idxName + "_" + t.name + "_" + attrb + ".data").c_str(), "wb+");
+        fclose(fp);
+    }
+
 } // namespace RM
