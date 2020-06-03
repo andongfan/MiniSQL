@@ -85,9 +85,121 @@ namespace RM
         }
     }
 
+    static int pair2id(const Table &t, std::pair<int, int> p)
+    {
+        return p.first * PIECE_CAPACITY + p.second;
+    }
+
+    static std::pair<int,int> id2pair(const Table &t, int id) {
+        return std::make_pair(id / PIECE_CAPACITY, id % PIECE_CAPACITY);
+    }
+
+    template<class T>
+    static PieceVec IndexSelectTemp(Table &t, const Attribute &a, const Condition &c)
+    {
+        int len;
+        if (a.type == AttrbType::CHAR)
+        {
+            len = a.Size() - 1;
+        }
+        else
+        {
+            len = a.Size();
+        }
+        int id;
+        for (int i = 0; i < t.attrbs.size(); ++i) {
+            if (t.attrbs[i].name == a.name) {
+                id = i;
+                break;
+            }
+        }
+        PieceVec res;
+        IndexManager<T> im(a.index, t.name, a.name, len);
+        if (c.type == CondType::EQUAL) {
+            std::pair<int, int> p = id2pair(t, im.findSingleRecordWithKey(std::get<T>(c.val)));
+            res.push_back(p);
+        } else {
+            Value lb, rb;
+            if (c.type == CondType::GREAT || c.type == CondType::GREAT_EQUAL) {
+                if (c.type == CondType::GREAT) {
+                    if (a.type == AttrbType::CHAR) {
+                        std::string s = std::get<string>(c.val);
+                        s[s.size() - 1] = '\0';
+                        lb = s;
+                    } else if (a.type == AttrbType::FLOAT) {
+                        double d = std::get<double>(c.val) - 1;
+                        lb = d;
+                    } else {
+                        int i = std::get<int>(c.val) - 1;
+                        lb = i;
+                    }
+                } else {
+                    lb = c.val;
+                }
+                if (a.type == AttrbType::CHAR) {
+                    rb = std::string(a.char_len, '\xff');
+                } else if (a.type == AttrbType::FLOAT) {
+                    rb = std::numeric_limits<double>::max();
+                } else {
+                    rb = std::numeric_limits<int>::max();
+                }
+            } else {
+                if (c.type == CondType::LESS)
+                {
+                    if (a.type == AttrbType::CHAR)
+                    {
+                        std::string s = std::get<string>(c.val);
+                        s[s.size() - 1] = '\xff';
+                        rb = s;
+                    }
+                    else if (a.type == AttrbType::FLOAT)
+                    {
+                        double d = std::get<double>(c.val) + 1;
+                        rb = d;
+                    }
+                    else
+                    {
+                        int i = std::get<int>(c.val) + 1;
+                        rb = i;
+                    }
+                }
+                else
+                {
+                    rb = c.val;
+                }
+                if (a.type == AttrbType::CHAR)
+                {
+                    rb = std::string(a.char_len, '\0');
+                }
+                else if (a.type == AttrbType::FLOAT)
+                {
+                    rb = std::numeric_limits<double>::min();
+                }
+                else
+                {
+                    rb = std::numeric_limits<int>::min();
+                }
+            }
+            lb = std::get<T>(lb);
+            rb = std::get<T>(rb);
+            std::vector<int> recs;
+            recs  = im.findRecordsWithRange(std::get<T>(lb), std::get<T>(rb));
+            for (int r : recs) {
+                res.push_back(id2pair(t, r));
+            }
+        }
+        return res;
+    }
+
     static PieceVec IndexSelect(Table &t, const Attribute &a, const Condition &c)
     {
-        // TODO
+        if (a.type == AttrbType::CHAR) {
+            return IndexSelectTemp<std::string>(t, a, c);
+        } else if (a.type == AttrbType::FLOAT) {
+            return IndexSelectTemp<double>(t, a, c);
+        } else {
+            return IndexSelectTemp<int>(t, a, c);
+        }
     }
 
     static bool CheckUniqueness(Table &t, const int id, const Value &v)
@@ -120,7 +232,7 @@ namespace RM
         }
         return true;
     }
-
+   
     std::pair<int, int> InsertRecord(Table &t, const std::vector<Value> &vals)
     {
         for (int i = 0; i < t.attrbs.size(); ++i)
@@ -183,6 +295,9 @@ namespace RM
         bool flag = false;
         for (Condition c : conds)
         {
+            if (c.type == CondType::NOT_EQUAL) { // cannot use index to optimiza unequality
+                continue;
+            }
             if (t.GetAttrb(c.attrb).index != "")
             {
                 if (not flag)
@@ -257,5 +372,39 @@ namespace RM
             res.push_back(GetTuple(t, p + piece.second));
         }
         return res;
+    }
+
+    template <class T>
+    static void BuildIndex(const std::string idxName, Table &t, int id, int len)
+    {
+        std::cerr << "BuildIndex" << std::endl;
+        IndexManager<T> im(idxName, t.name, t.attrbs[id].name, len);
+        PieceVec v = SelectPos(t, std::vector<Condition>());
+        std::cerr << "Done Selecting all" << std::endl;
+        for (auto piece : v)
+        {
+            int pageid = bm->getPageId(t.name, piece.first);
+            char *p = bm->getPageAddress(pageid);
+            std::vector<Value> vec = GetTuple(t, p + piece.second);
+            im.insertRecordWithKey(std::get<T>(vec[id]), pair2id(t, piece));
+        }
+    }
+
+    void CreateIndex(const std::string &idxName, Table &t, const std::string &attrb)
+    {
+        std::cerr << "CreateIndex" << std::endl;
+        for (int i = 0; i < t.attrbs.size(); ++i) {
+            if (t.attrbs[i].name == attrb) {
+                if (t.attrbs[i].type == AttrbType::CHAR) {
+                    BuildIndex<string>(idxName, t, i, t.attrbs[i].Size() - 1);
+                } else if (t.attrbs[i].type == AttrbType::FLOAT) {
+                    BuildIndex<double>(idxName, t, i, t.attrbs[i].Size());
+                } else {
+                    BuildIndex<int>(idxName,t, i, t.attrbs[i].Size());
+                }
+                t.attrbs[i].index = idxName; // set index file name
+                break;
+            }
+        }
     }
 } // namespace RM

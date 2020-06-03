@@ -450,6 +450,7 @@ void MiniSQL::CreateIndex(const CreateIndexStmt &stmt) {
             "' has already been built on attribute '" + attrb.name + "'");
     }
     cat_mgr.NewIndex(stmt.name, stmt.table_name, stmt.attrb_name);
+    RM::CreateIndex(stmt.name, table, attrb.name);
 }
 
 void MiniSQL::DropTable(const DropTableStmt &stmt) {

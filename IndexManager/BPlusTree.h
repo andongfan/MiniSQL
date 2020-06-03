@@ -9,8 +9,8 @@ using std::cout;
 using std::string;
 
 // #define DEBUG
-int freeStack[105] = {0};
-int blockCount = 0;
+inline int freeStack[105] = {0};
+inline int blockCount = 0;
 
 template<class T> class BPTree;
 template <class T>

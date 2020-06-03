@@ -9,6 +9,7 @@ add_subdirectory(BufferManager)
 add_subdirectory(CatalogManager)
 add_subdirectory(Interpreter)
 add_subdirectory(RecordManager)
+add_subdirectory(IndexManager)
 
 add_executable(${PROJECT_NAME}
     main.cpp

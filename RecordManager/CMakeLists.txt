@@ -7,5 +7,5 @@ target_include_directories(record_manager
 )
 
 target_link_libraries(record_manager
-    PUBLIC API interpreter buffer_manager
+    PUBLIC API interpreter buffer_manager index_manager
 )

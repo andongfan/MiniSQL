@@ -5,6 +5,7 @@
 #include <utility>
 #include "SQLStatement.h"
 #include "BufferManager.hpp"
+#include "IndexManager.h"
 #include "Table.h"
 
 namespace RM
@@ -12,7 +13,6 @@ namespace RM
     class RecordError : public std::exception
     {
         std::string msg;
-
     public:
         RecordError(const std::string info)
         {
@@ -34,4 +34,5 @@ namespace RM
     std::pair<int, int> InsertRecord(Table &t, const std::vector<Value> &vals);
     void DeleteRecord(Table &t, const std::vector<Condition> conds);
     std::vector<std::vector<Value>> SelectRecord(Table &t, const std::vector<Condition> conds);
+    void CreateIndex(const std::string &idxName, Table &t, const std::string &attrb);
 } // namespace RM

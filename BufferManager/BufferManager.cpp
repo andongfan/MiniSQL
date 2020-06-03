@@ -87,9 +87,7 @@ void BufferManager::unpinPage(int pageId)
     pages[pageId].setPin(false);
 }
 
-<<<<<<< HEAD
 BufferManager buf_mgr;
-=======
 void BufferManager::deletePageWithName(const std::string &filename)
 {
     for (int i = 0; i < FRAME_SIZE; ++i)
@@ -101,4 +99,3 @@ void BufferManager::deletePageWithName(const std::string &filename)
         }
     }
 }
->>>>>>> master
