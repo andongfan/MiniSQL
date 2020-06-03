@@ -152,8 +152,8 @@ namespace RM
         if (c.type == CondType::EQUAL) {
             int tt = im.findSingleRecordWithKey(myget<T>(c.val));
             if (tt != -1) {
-            std::pair<int, int> p = id2pair(t, tt);
-            res.push_back(p);
+                std::pair<int, int> p = id2pair(t, tt);
+                res.push_back(p);
             }
         } else {
             Value lb, rb;
@@ -486,11 +486,11 @@ namespace RM
             char *p = bm->getPageAddress(pageid);
             std::vector<Value> val = GetTuple(t, p + piece.second);
             bool flag = true;
-            /*for (int i = 0 ; i < t.attrbs.size(); ++i) {
+            for (int i = 0 ; i < t.attrbs.size(); ++i) {
                 if (t.attrbs[i].type == AttrbType::CHAR && std::get<std::string>(val[i]) == "") {
                     flag = false;
                 }
-            }*/
+            }
             if (flag) res.push_back(GetTuple(t, p + piece.second));
         }
         return res;
