@@ -148,12 +148,11 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
         if (i + 1 == conds.size() || conds[i].attrb != conds[i + 1].attrb) {
             auto attrb = conds[i].attrb;
             auto ty = table.GetAttrb(attrb).type;
-            // std::cout << "i = " << i << ", last = " << last << ", attrb = " << attrb << std::endl;
             if (ty == AttrbType::INT) {
                 int lower_bound = std::numeric_limits<int>::min();
                 int upper_bound = std::numeric_limits<int>::max();
                 int eq_val;
-                bool has_eq_val = false;
+                bool has_eq_val = false, has_lb = false, has_ub = false;
                 for (int j = last; j <= i; j++) {
                     auto cty = conds[j].type;
                     int tmp = std::get<int>(conds[j].val);
@@ -167,15 +166,25 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         upper_bound = std::min(upper_bound, tmp);
                     } else if (cty == CondType::LESS) {
                         upper_bound = std::min(upper_bound, tmp - 1);
+                        has_ub = true;
                     } else if (cty == CondType::LESS_EQUAL) {
                         upper_bound = std::min(upper_bound, tmp);
+                        has_ub = true;
                     } else if (cty == CondType::GREAT) {
                         lower_bound = std::max(lower_bound, tmp + 1);
+                        has_lb = true;
                     } else if (cty == CondType::LESS) {
                         lower_bound = std::max(lower_bound, tmp);
-                    } else {
-                        if (has_eq_val && tmp == eq_val) {
-                            return true;
+                        has_lb = true;
+                    }
+                }
+                if (has_eq_val) {
+                    for (int j = last; j <= i; j++) {
+                        if (conds[j].type == CondType::NOT_EQUAL) {
+                            int tmp = std::get<int>(conds[j].val);
+                            if (tmp == eq_val) {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -185,10 +194,14 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 if (has_eq_val) {
                     new_conds.emplace_back(attrb, eq_val, CondType::EQUAL);
                 } else {
-                    new_conds.emplace_back(attrb, lower_bound,
-                        CondType::GREAT_EQUAL);
-                    new_conds.emplace_back(attrb, upper_bound,
-                        CondType::LESS_EQUAL);
+                    if (has_lb) {
+                        new_conds.emplace_back(attrb, lower_bound,
+                            CondType::GREAT_EQUAL);
+                    }
+                    if (has_ub) {
+                        new_conds.emplace_back(attrb, upper_bound,
+                            CondType::LESS_EQUAL);
+                    }
                 }
                 for (int j = last; j <= i; j++) {
                     if (conds[j].type == CondType::NOT_EQUAL) {
@@ -205,7 +218,7 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 double ub_e = std::numeric_limits<double>::max();
                 double ub_ne = std::numeric_limits<double>::max();
                 double eq_val;
-                bool has_eq_val = false;
+                bool has_eq_val = false, has_lb = false, has_ub = false;
                 for (int j = last; j <= i; j++) {
                     auto cty = conds[j].type;
                     double tmp;
@@ -224,15 +237,30 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         ub_e = std::min(ub_e, tmp);
                     } else if (cty == CondType::LESS) {
                         ub_ne = std::min(ub_ne, tmp);
+                        has_ub = true;
                     } else if (cty == CondType::LESS_EQUAL) {
                         ub_e = std::min(ub_e, tmp);
+                        has_ub = true;
                     } else if (cty == CondType::GREAT) {
                         lb_ne = std::max(lb_ne, tmp);
+                        has_lb = true;
                     } else if (cty == CondType::LESS) {
                         lb_e = std::max(lb_e, tmp);
-                    } else {
-                        if (has_eq_val && tmp == eq_val) {
-                            return true;
+                        has_lb = true;
+                    }
+                }
+                if (has_eq_val) {
+                    for (int j = last; j <= i; j++) {
+                        if (conds[j].type == CondType::NOT_EQUAL) {
+                            double tmp;
+                            if (auto p = std::get_if<int>(&conds[j].val)) {
+                                tmp = *p;
+                            } else {
+                                tmp = std::get<double>(conds[j].val);
+                            }
+                            if (tmp == eq_val) {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -240,19 +268,27 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 double upper_bound;
                 bool has_ne = false;
                 if (ub_ne <= ub_e) {
-                    new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    if (has_ub) {
+                        new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    }
                     upper_bound = ub_ne;
                     has_ne = true;
                 } else {
-                    new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    if (has_ub) {
+                        new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    }
                     upper_bound = ub_e;
                 }
                 if (lb_ne >= lb_e) {
-                    new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    if (has_lb) {
+                        new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    }
                     lower_bound = lb_ne;
                     has_ne = true;
                 } else {
-                    new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    if (has_lb) {
+                        new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    }
                     lower_bound = lb_e;
                 }
                 if (lower_bound > upper_bound ||
@@ -284,7 +320,7 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 std::string ub_e = "\0";
                 std::string ub_ne = "\0";
                 std::string eq_val;
-                bool has_eq_val = false;
+                bool has_eq_val = false, has_lb = false, has_ub = false;
                 for (int j = last; j <= i; j++) {
                     auto cty = conds[j].type;
                     auto tmp = std::get<std::string>(conds[j].val);
@@ -296,15 +332,25 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                         eq_val = tmp;
                     } else if (cty == CondType::LESS) {
                         ub_ne = std::min(ub_ne, tmp);
+                        has_ub = true;
                     } else if (cty == CondType::LESS_EQUAL) {
                         ub_e = std::min(ub_e, tmp);
+                        has_ub = true;
                     } else if (cty == CondType::GREAT) {
                         lb_ne = std::max(lb_ne, tmp);
+                        has_lb = true;
                     } else if (cty == CondType::LESS) {
                         lb_e = std::max(lb_e, tmp);
-                    } else {
-                        if (has_eq_val && tmp == eq_val) {
-                            return true;
+                        has_lb = true;
+                    }
+                }
+                if (has_eq_val) {
+                    for (int j = last; j <= i; j++) {
+                        if (conds[j].type == CondType::NOT_EQUAL) {
+                            auto tmp = std::get<std::string>(conds[j].val);
+                            if (tmp == eq_val) {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -312,19 +358,27 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                 std::string upper_bound;
                 bool has_ne = false;
                 if (ub_ne <= ub_e) {
-                    new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    if (has_ub) {
+                        new_conds.emplace_back(attrb, ub_ne, CondType::LESS);
+                    }
                     upper_bound = ub_ne;
                     has_ne = true;
                 } else {
-                    new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    if (has_ub) {
+                        new_conds.emplace_back(attrb, ub_e, CondType::LESS_EQUAL);
+                    }
                     upper_bound = ub_e;
                 }
                 if (lb_ne >= lb_e) {
-                    new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    if (has_lb) {
+                        new_conds.emplace_back(attrb, lb_ne, CondType::GREAT);
+                    }
                     lower_bound = lb_ne;
                     has_ne = true;
                 } else {
-                    new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    if (has_lb) {
+                        new_conds.emplace_back(attrb, lb_e, CondType::GREAT_EQUAL);
+                    }
                     lower_bound = lb_e;
                 }
                 if (lower_bound > upper_bound ||
@@ -509,7 +563,7 @@ void MiniSQL::Select(const SelectStmt &stmt) {
         PrintTable(table, {}, {});
         return;
     }
-    PrintConds(conds);
+    // PrintConds(conds);
 
     const auto &datas = RM::SelectRecord(table, conds);
     if (stmt.all) {
