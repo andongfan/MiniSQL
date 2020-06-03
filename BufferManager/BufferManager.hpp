@@ -26,4 +26,5 @@ public:
     void deletePageWithName(const std::string &filename);
 };
 
+extern BufferManager buf_mgr;
 #endif
