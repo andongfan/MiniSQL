@@ -14,7 +14,7 @@ public:
     vector<int> findRecordsWithRange(const T& st, const T& ed);
     bool insertRecordWithKey(const T& key, int recordID);
     bool deleteRecordByKey(const T& key);
-    bool createIndex();
+    void createIndex();
     bool dropIndex();
 
     // debug
@@ -64,7 +64,7 @@ bool IndexManager<T>::deleteRecordByKey(const T& key) {
 }
 
 template<class T>
-bool IndexManager<T>::createIndex() {
+void IndexManager<T>::createIndex() {
     int order = (BLOCK_SIZE - 20) / (typeLen + 4) + 1;
     // int order = 4;
     int page = buf_mgr.getPageId(fileName, 0);
