@@ -173,7 +173,7 @@ BPTreeNode<T>::~BPTreeNode() {
             int pos = 20;
             auto& copyfrom = isLeaf ? records : children;
             memcpy(data + 12, &size, 4);
-            int realLen = keyLen;
+            // int realLen = keyLen;
             for (int i = 0; i < size; i++) {
                 if constexpr (std::is_same<T, std::string>()) {
                     // realLen = keyLen + 1;
@@ -274,11 +274,11 @@ void BPTreeNode<T>::pushKeyAndRecord(const T& key, int recordID) {
 template <class T>
 BPTreeNode<T>* BPTreeNode<T>::splitNonLeaf(BPTree<T>* tree) {
     const auto upIndex = std::ceil((N - 1.0) / 2);
-    const auto keyLen = keys.size();
+    const auto vecLen = keys.size();
     const auto upKey = keys[upIndex];
     // cout << upIndex;
     BPTreeNode<T>* splitNode = new BPTreeNode<T>(fileName, tree -> getFirstEmpty(), keyLen, parent, N, isLeaf); 
-    for (int i = upIndex + 1; i < keyLen; i++) {
+    for (int i = upIndex + 1; i < vecLen; i++) {
         splitNode -> keys.push_back(keys[upIndex + 1]);
         splitNode -> children.push_back(children[upIndex + 1]);
         BPTreeNode<T>* child = new BPTreeNode<T>(fileName, children[upIndex + 1], keyLen, N, 1);
