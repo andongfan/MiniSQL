@@ -20,19 +20,19 @@ static bool IsCondTrue(const T &lhs, const T &rhs, CondType type) {
 bool Condition::IsTrue(const Value &v) const {
     if (auto p = std::get_if<int>(&val)) {
         if (auto q = std::get_if<int>(&v)) {
-            return IsCondTrue(*p, *q, type);
+            return IsCondTrue(*q, *p, type);
         } else {
-            return IsCondTrue(double(*p), std::get<double>(v), type);
+            return IsCondTrue(std::get<double>(v), double(*p), type);
         }
     } else if (auto p = std::get_if<double>(&val)) {
         if (auto q = std::get_if<int>(&v)) {
-            return IsCondTrue(*p, double(*q), type);
+            return IsCondTrue(double(*q), *p, type);
         } else {
-            return IsCondTrue(*p, std::get<double>(v), type);
+            return IsCondTrue(std::get<double>(v), *p, type);
         }
     } else {
-        auto lhs = std::get<std::string>(val);
-        auto rhs = std::get<std::string>(v);
+        auto lhs = std::get<std::string>(v);
+        auto rhs = std::get<std::string>(val);
         return IsCondTrue(lhs, rhs, type);
     }
 }
