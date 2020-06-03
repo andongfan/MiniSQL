@@ -529,8 +529,7 @@ namespace RM
                 break;
             }
         }
-        FILE *fp = fopen((idxName + "_" + t.name + "_" + attrb + ".data").c_str(), "wb+");
-        fclose(fp);
+        remove((idxName + "_" + t.name + "_" + attrb + ".data").c_str());
     }
 
 } // namespace RM
