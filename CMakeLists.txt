@@ -4,7 +4,7 @@ project(mini-sql)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_definitions("-g -O3")
+add_definitions("-g -O0")
 
 add_subdirectory(API)
 add_subdirectory(BufferManager)

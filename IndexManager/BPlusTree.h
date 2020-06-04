@@ -703,36 +703,34 @@ template <class T>
 std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
     if (st > end) return std::vector<int>();
     BPNodePtr beginBlock = findNodeWithKey(st);
-    BPNodePtr endBlock = findNodeWithKey(end);
+    // BPNodePtr endBlock = findNodeWithKey(end);
     BPNodePtr cur = beginBlock;
     std::vector<int> ret;
-    auto L = std::lower_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), st);
-    if (beginBlock -> blockID == endBlock -> blockID) {
-        auto R = std::upper_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), end);
-        for (auto it = L; it != R; ++it) {
-            ret.push_back(beginBlock -> records[it - beginBlock -> keys.begin()]);
+    auto it = std::lower_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), st);
+    for (; it != cur -> keys.end(); it++) {
+        if (*it <= end) {
+            ret.push_back(cur -> records[it - cur -> keys.begin()]);
+        } else {
+            delete cur;
+            return ret;
         }
-        delete beginBlock;
-        delete endBlock;
-        return ret;
     }
-    auto R = std::upper_bound(endBlock -> keys.begin(), endBlock -> keys.end(), end);
-    for (; L != beginBlock -> keys.end(); L++) {
-        ret.push_back(beginBlock -> records[L - beginBlock -> keys.begin()]);
-    }
-    while(cur -> rightNode != endBlock -> blockID) {
+    while (cur -> rightNode != -1) {
+        BPNodePtr next = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, N, 2);
         cur -> dirtyLevel = 0;
         delete cur;
-        cur = new BPTreeNode<T>(fileName, cur -> rightNode, keyLen, N, 2);
-        for (auto it = cur -> keys.begin(); it != cur -> keys.end(); it++) {
-            ret.push_back(cur -> records[it - cur -> keys.begin()]);
+        cur = next;
+        cur -> dirtyLevel = 0;
+        for (it = cur -> keys.begin(); it != cur -> keys.end(); it++) {
+            if (*it <= end) {
+                ret.push_back(cur -> records[it - cur -> keys.begin()]);
+            } else {
+                delete cur;
+                return ret;
+            }
         }
     }
-    for (auto it = endBlock -> keys.begin(); it != R; it++) {
-        ret.push_back(endBlock -> records[it - endBlock -> keys.begin()]);
-    }
-    delete beginBlock;
-    delete endBlock;
+    delete cur;
     return ret;
 }
 
