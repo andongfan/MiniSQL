@@ -11,7 +11,7 @@ public:
     int typeLen;
     IndexManager(string indexName, string tableName, string attrName, int typeLen);
     int findSingleRecordWithKey(const T& key);
-    vector<int> findRecordsWithRange(const T& st, const T& ed);
+    vector<std::pair<T, int>> findRecordsWithRange(const T& st, const T& ed);
     bool insertRecordWithKey(const T& key, int recordID);
     bool deleteRecordByKey(const T& key);
     bool createIndex();
@@ -46,7 +46,7 @@ int IndexManager<T>::findSingleRecordWithKey(const T& key) {
 
 
 template<class T>
-vector<int> IndexManager<T>::findRecordsWithRange(const T& st, const T& ed) {
+vector<std::pair<T, int>> IndexManager<T>::findRecordsWithRange(const T& st, const T& ed) {
     BPTree<T> bPlusTree(fileName);
     return bPlusTree.findRecordWithRange(st, ed);
 }

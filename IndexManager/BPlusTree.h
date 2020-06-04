@@ -632,7 +632,7 @@ public:
         return rtID;
     }
     int findRecordWithKey(const T& key);         
-    std::vector<int> findRecordWithRange(const T& st, const T& end);                     // get the record for key
+    std::vector<std::pair<T, int>> findRecordWithRange(const T& st, const T& end);                     // get the record for key
     bool insertRecordWithKey(const T& key, int recordID);    // insert key-record pair into b+
     bool deleteRecordWithKey(const T& key);                  // delete key-record pair from b+
 
@@ -700,16 +700,16 @@ int BPTree<T>::findRecordWithKey(const T& key) {
 }
 
 template <class T>
-std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
-    if (st > end) return std::vector<int>();
+std::vector<std::pair<T, int>> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
+    if (st > end) return std::vector<std::pair<T, int>>();
     BPNodePtr beginBlock = findNodeWithKey(st);
     // BPNodePtr endBlock = findNodeWithKey(end);
     BPNodePtr cur = beginBlock;
-    std::vector<int> ret;
+    std::vector<std::pair<T, int>> ret;
     auto it = std::lower_bound(beginBlock -> keys.begin(), beginBlock -> keys.end(), st);
     for (; it != cur -> keys.end(); it++) {
         if (*it <= end) {
-            ret.push_back(cur -> records[it - cur -> keys.begin()]);
+            ret.push_back(std::pair<T, int>(*it, cur -> records[it - cur -> keys.begin()]));
         } else {
             delete cur;
             return ret;
@@ -723,7 +723,7 @@ std::vector<int> BPTree<T>::findRecordWithRange(const T& st, const T& end) {
         cur -> dirtyLevel = 0;
         for (it = cur -> keys.begin(); it != cur -> keys.end(); it++) {
             if (*it <= end) {
-                ret.push_back(cur -> records[it - cur -> keys.begin()]);
+                ret.push_back(std::pair<T, int>(*it, cur -> records[it - cur -> keys.begin()]));
             } else {
                 delete cur;
                 return ret;
