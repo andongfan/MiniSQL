@@ -220,15 +220,15 @@ namespace RM
                 }
                 if (a.type == AttrbType::CHAR)
                 {
-                    rb = std::string(a.char_len, '\0');
+                    lb = std::string(a.char_len, '\0');
                 }
                 else if (a.type == AttrbType::FLOAT)
                 {
-                    rb = std::numeric_limits<double>::min();
+                    lb = std::numeric_limits<double>::min();
                 }
                 else
                 {
-                    rb = std::numeric_limits<int>::min();
+                    lb = std::numeric_limits<int>::min();
                 }
             }
             std::vector<int> recs;
@@ -486,11 +486,11 @@ namespace RM
             char *p = bm->getPageAddress(pageid);
             std::vector<Value> val = GetTuple(t, p + piece.second);
             bool flag = true;
-            for (int i = 0 ; i < t.attrbs.size(); ++i) {
+            /*for (int i = 0 ; i < t.attrbs.size(); ++i) {
                 if (t.attrbs[i].type == AttrbType::CHAR && std::get<std::string>(val[i]) == "") {
                     flag = false;
                 }
-            }
+            }*/
             if (flag) res.push_back(GetTuple(t, p + piece.second));
         }
         return res;
