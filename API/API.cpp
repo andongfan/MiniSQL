@@ -173,7 +173,7 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     } else if (cty == CondType::GREAT) {
                         lower_bound = std::max(lower_bound, tmp + 1);
                         has_lb = true;
-                    } else if (cty == CondType::LESS) {
+                    } else if (cty == CondType::GREAT_EQUAL) {
                         lower_bound = std::max(lower_bound, tmp);
                         has_lb = true;
                     }
@@ -244,7 +244,7 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     } else if (cty == CondType::GREAT) {
                         lb_ne = std::max(lb_ne, tmp);
                         has_lb = true;
-                    } else if (cty == CondType::LESS) {
+                    } else if (cty == CondType::GREAT_EQUAL) {
                         lb_e = std::max(lb_e, tmp);
                         has_lb = true;
                     }
@@ -339,7 +339,7 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     } else if (cty == CondType::GREAT) {
                         lb_ne = std::max(lb_ne, tmp);
                         has_lb = true;
-                    } else if (cty == CondType::LESS) {
+                    } else if (cty == CondType::GREAT_EQUAL) {
                         lb_e = std::max(lb_e, tmp);
                         has_lb = true;
                     }
@@ -583,6 +583,46 @@ void MiniSQL::Select(const SelectStmt &stmt) {
     }
 }
 
+void MiniSQL::Update(const UpdateStmt &stmt) {
+    if (!cat_mgr.CheckTable(stmt.table_name)) {
+        throw SQLExecError("no table named '" + stmt.table_name + "'");
+    }
+    auto &table = cat_mgr.GetTable(stmt.table_name);
+    int i = 0;
+    for (const auto &[name, val] : stmt.values) {
+        if (!table.HasAttrb(name)) {
+            throw SQLExecError("table '" + stmt.table_name +
+                "' doesn't have an attribute named '" + name + "'");
+        }
+        auto attrb = table.GetAttrb(name);
+        if (!CheckType(attrb, val)) {
+            throw SQLExecError("value type of the " + OrderStr(++i) +
+                " assignment doesn't match");
+        }
+    }
+    i = 0;
+    for (const auto &cond : stmt.conds) {
+        if (!table.HasAttrb(cond.attrb)) {
+            throw SQLExecError("table '" + stmt.table_name +
+                "' doesn't have an attribute named '" + cond.attrb + "'");
+        }
+        auto attrb = table.GetAttrb(cond.attrb);
+        auto val = cond.val;
+        if (!CheckType(attrb, val)) {
+            throw SQLExecError("value type of the " + OrderStr(++i) +
+                " constrain doesn't match");
+        }
+    }
+
+    auto conds = stmt.conds;
+    if (MergeConditions(table, conds)) {
+        PrintTable(table, {}, {});
+        return;
+    }
+    // PrintConds(conds);
+    // TODO
+}
+
 void MiniSQL::Execfile(const ExecfileStmt &stmt) {
     std::ifstream fin(stmt.file_name);
     std::cout << "exec '" << stmt.file_name << "'" << std::endl;
@@ -646,6 +686,13 @@ void MiniSQL::Print(const SQLStatement &stmt) {
         }
         std::cout << "select " << attrbs << "from " << p->table_name << std::endl;
         PrintConds(p->conds);
+    } else if (auto p = std::get_if<UpdateStmt>(&stmt)) {
+        std::cout << "update " << p->table_name << std::endl;
+        std::cout << "set";
+        for (const auto &[name, val] : p->values) {
+            std::cout << " " << name << " = " << Val2Str(val, true);
+        }
+        PrintConds(p->conds);
     } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
         std::cout << "quit" << std::endl;
     } else if (auto p = std::get_if<ExecfileStmt>(&stmt)) {
@@ -700,7 +747,7 @@ void MiniSQL::MainLoop() {
             auto stmts = inter.Parse(str);
             int i = 0;
             for (const auto &stmt : stmts) {
-                // Print(stmt);
+                Print(stmt);
                 ++i;
                 std::cout << "statement " << i << ": ";
                 auto time = Execute(stmt);

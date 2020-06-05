@@ -186,6 +186,8 @@ SQLStatement Interpreter::ParseStmt(const std::string &stmt) const {
                 return ParseDelete(stmt, i);
             } else if (str == "select") {
                 return ParseSelect(stmt, i);
+            } else if (str == "update") {
+                return ParseUpdate(stmt, i);
             } else if (str == "quit" || str == "exit") {
                 return ParseQuit(stmt, i);
             } else if (str == "execfile") {
@@ -699,6 +701,50 @@ SelectStmt Interpreter::ParseSelect(const std::string &stmt, int begin) const {
     if (where_str != "where") {
         throw SQLStmtError(stmt, ExpFndStr("where", where_str));
     }
+    sql_stmt.conds = ParseWhere(stmt, begin);
+
+    return sql_stmt;
+}
+
+UpdateStmt Interpreter::ParseUpdate(const std::string &stmt, int begin) const {
+    UpdateStmt sql_stmt;
+
+    Forward(stmt, begin);
+    auto table_name = GetString(stmt, begin);
+    if (table_name.empty()) {
+        throw SQLStmtError(stmt, "expected table name");
+    }
+    sql_stmt.table_name = table_name;
+
+    Forward(stmt, begin);
+    auto set_str = GetString(stmt, begin);
+    if (set_str != "set") {
+        throw SQLStmtError(stmt, ExpFndStr("set", set_str));
+    }
+
+    while (true) {
+        Forward(stmt, begin);
+        auto attrb_name = GetString(stmt, begin);
+        if (attrb_name.empty()) {
+            throw SQLStmtError(stmt, "expected attribute name");
+        }
+
+        Forward(stmt, begin);
+        if (begin >= stmt.size()) {
+            throw SQLStmtError(stmt, "expected '='");
+        } else if (attrb_name == "where" && stmt[begin] != '=') {
+            break;
+        } else if (stmt[begin] != '=') {
+            throw SQLStmtError(stmt, ExpFndStr("=", stmt[begin]));
+        }
+        ++begin;
+
+        Forward(stmt, begin);
+        auto val = GetValue(stmt, begin);
+
+        sql_stmt.values.emplace_back(attrb_name, val);
+    }
+
     sql_stmt.conds = ParseWhere(stmt, begin);
 
     return sql_stmt;

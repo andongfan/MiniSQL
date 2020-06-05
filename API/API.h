@@ -25,6 +25,7 @@ class MiniSQL {
     void Insert(const InsertStmt &stmt);
     void Delete(const DeleteStmt &stmt);
     void Select(const SelectStmt &stmt);
+    void Update(const UpdateStmt &stmt);
     void Quit(const QuitStmt &stmt);
     void Execfile(const ExecfileStmt &stmt);
 

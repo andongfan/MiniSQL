@@ -64,6 +64,12 @@ struct SelectStmt {
     std::vector<Condition> conds;
 };
 
+struct UpdateStmt {
+    std::string table_name;
+    std::vector<std::pair<std::string, Value>> values;
+    std::vector<Condition> conds;
+};
+
 struct QuitStmt {};
 
 struct ExecfileStmt {
@@ -72,4 +78,4 @@ struct ExecfileStmt {
 
 using SQLStatement = std::variant<CreateTableStmt, CreateIndexStmt,
     DropTableStmt, DropIndexStmt, InsertStmt, SelectStmt, DeleteStmt,
-    QuitStmt, ExecfileStmt>;
+    UpdateStmt, QuitStmt, ExecfileStmt>;

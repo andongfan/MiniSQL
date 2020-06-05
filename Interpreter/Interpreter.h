@@ -17,6 +17,7 @@ class Interpreter {
     InsertStmt ParseInsert(const std::string &stmt, int begin) const;
     DeleteStmt ParseDelete(const std::string &stmt, int begin) const;
     SelectStmt ParseSelect(const std::string &stmt, int begin) const;
+    UpdateStmt ParseUpdate(const std::string &stmt, int begin) const;
     ExecfileStmt ParseExecfile(const std::string &stmt, int begin) const;
     QuitStmt ParseQuit(const std::string &stmt, int begin) const;
 
