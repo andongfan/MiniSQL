@@ -743,6 +743,14 @@ UpdateStmt Interpreter::ParseUpdate(const std::string &stmt, int begin) const {
         auto val = GetValue(stmt, begin);
 
         sql_stmt.values.emplace_back(attrb_name, val);
+
+        Forward(stmt, begin);
+        if (begin >= stmt.size()) {
+            throw SQLStmtError(stmt, "expected ','");
+        } else if (stmt[begin] != ',') {
+            throw SQLStmtError(stmt, ExpFndStr(",", stmt[begin]));
+        }
+        ++begin;
     }
 
     sql_stmt.conds = ParseWhere(stmt, begin);
