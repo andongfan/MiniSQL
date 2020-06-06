@@ -655,7 +655,7 @@ SelectStmt Interpreter::ParseSelect(const std::string &stmt, int begin) const {
 
     Forward(stmt, begin);
     if (begin >= stmt.size()) {
-        throw SQLStmtError(stmt, "expected * or attribute name list");
+        throw SQLStmtError(stmt, "expected '*' or attribute name list");
     }
     if (stmt[begin] == '*') {
         sql_stmt.all = true;
@@ -670,7 +670,7 @@ SelectStmt Interpreter::ParseSelect(const std::string &stmt, int begin) const {
             sql_stmt.attrb_names.emplace_back(str);
             Forward(stmt, begin);
             if (begin >= stmt.size()) {
-                throw SQLStmtError(stmt, "expected ',' or from");
+                throw SQLStmtError(stmt, "expected ',' or 'from'");
             } else if (stmt[begin] == ',') {
                 ++begin;
                 continue;
@@ -732,8 +732,6 @@ UpdateStmt Interpreter::ParseUpdate(const std::string &stmt, int begin) const {
         Forward(stmt, begin);
         if (begin >= stmt.size()) {
             throw SQLStmtError(stmt, "expected '='");
-        } else if (attrb_name == "where" && stmt[begin] != '=') {
-            break;
         } else if (stmt[begin] != '=') {
             throw SQLStmtError(stmt, ExpFndStr("=", stmt[begin]));
         }
@@ -746,7 +744,16 @@ UpdateStmt Interpreter::ParseUpdate(const std::string &stmt, int begin) const {
 
         Forward(stmt, begin);
         if (begin >= stmt.size()) {
-            throw SQLStmtError(stmt, "expected ','");
+            throw SQLStmtError(stmt, "expected ',' or 'where'");
+        } else if (stmt[begin] == 'w') {
+            auto where_str = GetString(stmt, begin);
+            if (where_str == "where") {
+                break;
+            } else {
+                throw SQLStmtError(stmt, ExpFndStr(",' or 'where", where_str));
+            }
+        } else if (stmt[begin] == ';') {
+            return sql_stmt;
         } else if (stmt[begin] != ',') {
             throw SQLStmtError(stmt, ExpFndStr(",", stmt[begin]));
         }

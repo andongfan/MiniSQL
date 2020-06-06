@@ -716,6 +716,8 @@ std::chrono::duration<double> MiniSQL::Execute(const SQLStatement &stmt) {
         Delete(*p);
     } else if (auto p = std::get_if<SelectStmt>(&stmt)) {
         Select(*p);
+    } else if (auto p = std::get_if<UpdateStmt>(&stmt)) {
+        Update(*p);
     } else if (auto p = std::get_if<ExecfileStmt>(&stmt)) {
         Execfile(*p);
     } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
@@ -747,7 +749,7 @@ void MiniSQL::MainLoop() {
             auto stmts = inter.Parse(str);
             int i = 0;
             for (const auto &stmt : stmts) {
-                Print(stmt);
+                // Print(stmt);
                 ++i;
                 std::cout << "statement " << i << ": ";
                 auto time = Execute(stmt);
