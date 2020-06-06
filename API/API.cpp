@@ -213,8 +213,8 @@ static bool MergeConditions(const Table &table, std::vector<Condition> &conds) {
                     }
                 }
             } else if (ty == AttrbType::FLOAT) {
-                double lb_e = std::numeric_limits<double>::min();
-                double lb_ne = std::numeric_limits<double>::min();
+                double lb_e = std::numeric_limits<double>::lowest();
+                double lb_ne = std::numeric_limits<double>::lowest();
                 double ub_e = std::numeric_limits<double>::max();
                 double ub_ne = std::numeric_limits<double>::max();
                 double eq_val;
@@ -573,7 +573,7 @@ void MiniSQL::Select(const SelectStmt &stmt) {
         PrintTable(table, {}, {});
         return;
     }
-    // PrintConds(conds);
+    PrintConds(conds);
 
     const auto &datas = RM::SelectRecord(table, conds);
     if (stmt.all) {
@@ -616,11 +616,10 @@ void MiniSQL::Update(const UpdateStmt &stmt) {
 
     auto conds = stmt.conds;
     if (MergeConditions(table, conds)) {
-        PrintTable(table, {}, {});
         return;
     }
+
     // PrintConds(conds);
-    // TODO
     RM::UpdateRecord(table, conds, stmt.values);
 }
 
