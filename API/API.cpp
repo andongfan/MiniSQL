@@ -621,6 +621,7 @@ void MiniSQL::Update(const UpdateStmt &stmt) {
     }
     // PrintConds(conds);
     // TODO
+    RM::UpdateRecord(table, conds, stmt.values);
 }
 
 void MiniSQL::Execfile(const ExecfileStmt &stmt) {

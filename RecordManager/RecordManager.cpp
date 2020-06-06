@@ -460,7 +460,44 @@ namespace RM
         return res;
     }
 
-    void UpdateRecord(Table &t, const std::vector<Condition> &conds, const std::vector<std::pair<std::string, Value>> &values);
+    template<class T>
+    static void IndexUpdate(std::string Index, std::string Table, std::string Attrb, int len, Value before, Value after) {
+        IndexManager<T> im(Index, Table, Attrb, len);
+        int r = im.deleteRecordByKey(myget<T>(before));
+        im.insertRecordWithKey(myget<T>(after), r);
+    }
+
+    void UpdateRecord(Table &t, const std::vector<Condition> &conds, const std::vector<std::pair<std::string, Value>> &values) {
+        PieceVec v = SelectPos(t, conds);
+        std::vector<int> ids;
+        for (int i = 0; i < values.size(); ++i) {
+            for (int j = 0; j < t.attrbs.size(); ++j) {
+                if (t.attrbs[j].name == values[i].first) {
+                    ids.push_back(j);
+                    break;
+                }
+            }
+        }
+        
+        for (auto piece : v) {
+            int pageid = bm->getPageId(t.name, piece.first);
+            char *p = bm->getPageAddress(pageid);
+            std::vector<Value> tup = GetTuple(t, p + piece.second);
+            for (int i = 0; i < values.size(); ++i) {
+                if (t.attrbs[i].index != "") {
+                    if (t.attrbs[i].type == AttrbType::CHAR) {
+                        IndexUpdate<std::string>(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].char_len, tup[ids[i]], values[i].second);
+                    } else  if (t.attrbs[i].type == AttrbType::FLOAT) {
+                        IndexUpdate<double>(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size(), tup[ids[i]], values[i].second);
+                    } else {
+                        IndexUpdate<int>(t.attrbs[i].index, t.name, t.attrbs[i].name, t.attrbs[i].Size(), tup[ids[i]], values[i].second);
+                    }
+                }
+                tup[ids[i]] = values[i].second;
+            }
+            PutTuple(t, tup, p + piece.second);
+        }
+    }
 
     template <class T>
     static void BuildIndex(const std::string idxName, Table &t, int id, int len)
