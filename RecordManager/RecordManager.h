@@ -34,6 +34,7 @@ namespace RM
     std::pair<int, int> InsertRecord(Table &t, const std::vector<Value> &vals);
     void DeleteRecord(Table &t, const std::vector<Condition> conds);
     std::vector<std::vector<Value>> SelectRecord(Table &t, const std::vector<Condition> conds);
+    void UpdateRecord(Table &t, const std::vector<Condition> &conds, const std::vector<std::pair<std::string, Value>> &values);
     void CreateIndex(const std::string &idxName, Table &t, const std::string &attrb);
     void DropIndex(const std::string &idxName, Table &t, const std::string &attrb);
 } // namespace RM

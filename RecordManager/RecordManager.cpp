@@ -131,6 +131,9 @@ namespace RM
     template<class T>
     static PieceVec IndexSelectTemp(Table &t, const Attribute &a, const Condition &c)
     {
+        // std::cerr << std::get<int>(c.val) << "FUCK" << std::endl;
+        // std::cerr << (c.type == CondType::GREAT) << std::endl;
+        // return PieceVec();
         int len;
         if (a.type == AttrbType::CHAR)
         {
@@ -158,30 +161,7 @@ namespace RM
         } else {
             Value lb, rb;
             if (c.type == CondType::GREAT || c.type == CondType::GREAT_EQUAL) {
-                if (c.type == CondType::GREAT) {
-                    if (a.type == AttrbType::CHAR) {
-                        std::string s = std::get<string>(c.val);
-                        s[s.size() - 1] = '\0';
-                        lb = s;
-                    } else if (a.type == AttrbType::FLOAT)
-                    {
-                        double tmp;
-                        if (auto p = std::get_if<double>(&c.val))
-                            tmp = *p;
-                        else
-                            tmp = std::get<int>(c.val);
-                        double d = tmp - 1;
-                        
-                        lb = d;
-                    }
-                    else
-                    {
-                        int i = std::get<int>(c.val) - 1;
-                        lb = i;
-                    }
-                } else {
-                    lb = c.val;
-                }
+                lb = c.val;
                 if (a.type == AttrbType::CHAR) {
                     rb = std::string(a.char_len, '\xff');
                 } else if (a.type == AttrbType::FLOAT) {
@@ -190,34 +170,7 @@ namespace RM
                     rb = std::numeric_limits<int>::max();
                 }
             } else {
-                if (c.type == CondType::LESS)
-                {
-                    if (a.type == AttrbType::CHAR)
-                    {
-                        std::string s = std::get<string>(c.val);
-                        s[s.size() - 1] = '\xff';
-                        rb = s;
-                    }
-                    else if (a.type == AttrbType::FLOAT)
-                    {
-                        double tmp;
-                        if (auto p = std::get_if<double>(&c.val))
-                            tmp = *p;
-                        else
-                            tmp = std::get<int>(c.val);
-                        double d = tmp + 1;
-                        rb = d;
-                    }
-                    else
-                    {
-                        int i = std::get<int>(c.val) + 1;
-                        rb = i;
-                    }
-                }
-                else
-                {
-                    rb = c.val;
-                }
+                rb = c.val;
                 if (a.type == AttrbType::CHAR)
                 {
                     lb = std::string(a.char_len, '\0');
@@ -231,11 +184,18 @@ namespace RM
                     lb = std::numeric_limits<int>::min();
                 }
             }
-            std::vector<int> recs;
             
-            recs  = im.findRecordsWithRange(myget<T>(lb), myget<T>(rb));
-            for (int r : recs) {
-                res.push_back(id2pair(t, r));
+            auto recs = im.findRecordsWithRange(myget<T>(lb), myget<T>(rb));
+
+            if (not recs.empty()) {
+                int l = 0, r = recs.size() - 1;
+                if (c.type == CondType::GREAT && recs[l].first == myget<T>(lb))
+                    ++l;
+                if (c.type == CondType::LESS && recs[r].first == myget<T>(rb))
+                    --r;
+                for (int i = l; i <= r; ++i) {
+                    res.push_back(id2pair(t, recs[i].second));
+                }
             }
         }
         return res;
@@ -375,6 +335,7 @@ namespace RM
     {
         PieceVec v;
         bool flag = false;
+        // std::cerr << conds.size() << std::endl;
         for (Condition c : conds)
         {
             if (c.type == CondType::NOT_EQUAL) { // cannot use index to optimiza unequality
@@ -396,6 +357,7 @@ namespace RM
         }
         if (not flag)
         { // no index involved
+            // std::cerr << "No Index involved!" << std::endl;
             int blockcount = GetBlockCount(t);
             for (int i = 0; i < blockcount; ++i)
             {
@@ -430,6 +392,7 @@ namespace RM
                 }
             }
         }
+        // return PieceVec();
         return v;
     }
 
@@ -478,6 +441,7 @@ namespace RM
 
     std::vector<std::vector<Value>> SelectRecord(Table &t, const std::vector<Condition> conds)
     {
+        // std::cerr << "SelectRecord: " << conds.size() << std::endl;
         std::vector<std::vector<Value>> res;
         PieceVec v = SelectPos(t, conds);
         for (auto piece : v)
@@ -495,6 +459,8 @@ namespace RM
         }
         return res;
     }
+
+    void UpdateRecord(Table &t, const std::vector<Condition> &conds, const std::vector<std::pair<std::string, Value>> &values);
 
     template <class T>
     static void BuildIndex(const std::string idxName, Table &t, int id, int len)
