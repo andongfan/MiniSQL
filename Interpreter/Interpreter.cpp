@@ -192,9 +192,20 @@ SQLStatement Interpreter::ParseStmt(const std::string &stmt) const {
                 return ParseQuit(stmt, i);
             } else if (str == "execfile") {
                 return ParseExecfile(stmt, i);
+            } else if (str == "show") {
+                Forward(stmt, i);
+                auto str2 = GetString(stmt, i);
+                if (str2 == "tables") {
+                    return ParseShowTables(stmt, i);
+                } else if (str2 == "index") {
+                    return ParseShowIndex(stmt, i);
+                } else {
+                    throw SQLStmtError(stmt,
+                        ExpFndStr("tables' or 'index", str2));
+                }
             } else {
-            std::cout << "str: " << str << std::endl;
-                throw SQLStmtError(stmt, "unknown statement");
+                std::cout << "str: " << str << std::endl;
+                    throw SQLStmtError(stmt, "unknown statement");
             }
         }
     }
@@ -794,6 +805,41 @@ QuitStmt Interpreter::ParseQuit(const std::string &stmt, int begin) const {
     }
 
     return QuitStmt {};
+}
+
+ShowTablesStmt
+Interpreter::ParseShowTables(const std::string &stmt, int begin) const {
+    Forward(stmt, begin);
+    if (begin >= stmt.size() || stmt[begin] != ';') {
+        throw SQLStmtError(stmt, ExpFndStr(";", stmt[begin]));
+    }
+
+    return ShowTablesStmt {};
+}
+
+ShowIndexStmt
+Interpreter::ParseShowIndex(const std::string &stmt, int begin) const {
+    ShowIndexStmt sql_stmt;
+
+    Forward(stmt, begin);
+    auto from_str = GetString(stmt, begin);
+    if (from_str != "from") {
+        throw SQLStmtError(stmt, ExpFndStr("from", from_str));
+    }
+
+    Forward(stmt, begin);
+    auto name = GetString(stmt, begin);
+    if (name.empty()) {
+        throw SQLStmtError(stmt, "expected table name");
+    }
+    sql_stmt.name = name;
+    
+    Forward(stmt, begin);
+    if (begin >= stmt.size() || stmt[begin] != ';') {
+        throw SQLStmtError(stmt, ExpFndStr(";", stmt[begin]));
+    }
+
+    return sql_stmt;
 }
 
 std::vector<Condition>

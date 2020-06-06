@@ -20,6 +20,8 @@ class Interpreter {
     UpdateStmt ParseUpdate(const std::string &stmt, int begin) const;
     ExecfileStmt ParseExecfile(const std::string &stmt, int begin) const;
     QuitStmt ParseQuit(const std::string &stmt, int begin) const;
+    ShowTablesStmt ParseShowTables(const std::string &stmt, int begin) const;
+    ShowIndexStmt ParseShowIndex(const std::string &stmt, int begin) const;
 
     std::vector<Condition> ParseWhere(const std::string &stmt, int begin) const;
 

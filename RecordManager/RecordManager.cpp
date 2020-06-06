@@ -468,6 +468,14 @@ namespace RM
     }
 
     void UpdateRecord(Table &t, const std::vector<Condition> &conds, const std::vector<std::pair<std::string, Value>> &values) {
+        for (const auto &[name, val] : values) {
+            for (int i = 0; i < t.attrbs.size(); i++) {
+                if (t.attrbs[i].name == name && t.attrbs[i].is_unique && not CheckUniqueness(t, i, val)) {
+                    throw RecordError("attribute " + t.attrbs[i].name + " not unique!");
+                }
+            }
+        }
+
         PieceVec v = SelectPos(t, conds);
         std::vector<int> ids;
         for (int i = 0; i < values.size(); ++i) {

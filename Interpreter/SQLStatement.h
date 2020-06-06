@@ -76,6 +76,11 @@ struct ExecfileStmt {
     std::string file_name;
 };
 
+struct ShowTablesStmt {};
+struct ShowIndexStmt {
+    std::string name;
+};
+
 using SQLStatement = std::variant<CreateTableStmt, CreateIndexStmt,
     DropTableStmt, DropIndexStmt, InsertStmt, SelectStmt, DeleteStmt,
-    UpdateStmt, QuitStmt, ExecfileStmt>;
+    UpdateStmt, QuitStmt, ExecfileStmt, ShowTablesStmt, ShowIndexStmt>;

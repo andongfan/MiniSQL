@@ -573,7 +573,7 @@ void MiniSQL::Select(const SelectStmt &stmt) {
         PrintTable(table, {}, {});
         return;
     }
-    PrintConds(conds);
+    // PrintConds(conds);
 
     const auto &datas = RM::SelectRecord(table, conds);
     if (stmt.all) {
@@ -639,6 +639,58 @@ void MiniSQL::Execfile(const ExecfileStmt &stmt) {
 
 void MiniSQL::Quit(const QuitStmt &stmt) {
     should_quit = true;
+}
+
+void MiniSQL::ShowTables(const ShowTablesStmt &stmt) {
+    const auto &tables = cat_mgr.tables;
+    size_t len = std::string("tables").size();
+    for (const auto &[name, _] : tables) {
+        len = std::max(len, name.size());
+    }
+
+    std::string delim = '+' + std::string(len + 1, '-') + '+';
+    std::cout << std::left << '\n' << delim << std::endl;
+    std::cout << '|' << std::setw(len + 1) << "tables" << "|\n" << delim << std::endl;
+    for (const auto &[name, _] : tables) {
+        std::cout << '|' << std::setw(len + 1) << name << "|\n" << delim << std::endl;
+    }
+
+    int n_row = tables.size();
+    if (n_row > 1) {
+        std::cout << n_row << " rows returned" << std::endl;
+    } else {
+        std::cout << n_row << " row returned" << std::endl;
+    }
+}
+
+void MiniSQL::ShowIndex(const ShowIndexStmt &stmt) {
+    if (!cat_mgr.CheckName(stmt.name)) {
+        throw SQLExecError("no table named '" + stmt.name + "'");
+    }
+    const auto &table = cat_mgr.GetTable(stmt.name);
+
+    size_t len = std::string("indices").size();
+    std::vector<std::string> indices;
+    for (const auto &attrb : table.attrbs) {
+        if (attrb.index != "") {
+            indices.push_back(attrb.index);
+            len = std::max(len, attrb.index.size());
+        }
+    }
+
+    std::string delim = '+' + std::string(len + 1, '-') + '+';
+    std::cout << std::left << '\n' << delim << std::endl;
+    std::cout << '|' << std::setw(len + 1) << "indices" << "|\n" << delim << std::endl;
+    for (const auto &name : indices) {
+        std::cout << '|' << std::setw(len + 1) << name << "|\n" << delim << std::endl;
+    }
+    
+    int n_row = indices.size();
+    if (n_row > 1) {
+        std::cout << n_row << " rows returned" << std::endl;
+    } else {
+        std::cout << n_row << " row returned" << std::endl;
+    }
 }
 
 void MiniSQL::Print(const SQLStatement &stmt) {
@@ -722,6 +774,10 @@ std::chrono::duration<double> MiniSQL::Execute(const SQLStatement &stmt) {
         Execfile(*p);
     } else if (auto p = std::get_if<QuitStmt>(&stmt)) {
         Quit(*p);
+    } else if (auto p = std::get_if<ShowTablesStmt>(&stmt)) {
+        ShowTables(*p);
+    } else if (auto p = std::get_if<ShowIndexStmt>(&stmt)) {
+        ShowIndex(*p);
     }
     auto end = std::chrono::high_resolution_clock::now();
     return end - begin;

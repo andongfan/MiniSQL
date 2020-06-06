@@ -28,6 +28,8 @@ class MiniSQL {
     void Update(const UpdateStmt &stmt);
     void Quit(const QuitStmt &stmt);
     void Execfile(const ExecfileStmt &stmt);
+    void ShowTables(const ShowTablesStmt &stmt);
+    void ShowIndex(const ShowIndexStmt &stmt);
 
     Interpreter inter;
     CatalogManager cat_mgr;
